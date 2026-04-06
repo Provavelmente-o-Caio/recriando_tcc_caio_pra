@@ -1,0 +1,276 @@
+{
+    "experiment_1": {
+        "features": [
+            "VS",
+            "VP",
+            "RHO",
+            "GR",
+            "CALIPER",
+            "POROSIDADE",
+            "RHO",
+            "SATURACAO"
+        ],
+        "target": "VS",
+        "train_wells": [
+            "Well 3",
+            "Well 4",
+            "Well 5",
+            "Well 6"
+        ],
+        "test_wells": [
+            "Well 1",
+            "Well 7"
+        ],
+        "model": "WellLogLSTM",
+        "model_params": {
+            "input_size": 8,
+            "hidden_size": 64,
+            "num_layers": 2,
+            "dropout": 0.3,
+            "batch_size": 32,
+            "num_epochs": 100,
+            "learning_rate": 0.001,
+            "weight_decay": 1e-05
+        },
+        "results": {
+            "rmse": 0.032428957521915436,
+            "mse": 0.0010516372276470065,
+            "r2": 0.9738422095865075
+        },
+        "training_time": 16.552387952804565,
+        "inference_time": 0.013792753219604492,
+        "notes": ""
+    },
+    "experiment_2": {
+        "features": [
+            "VS",
+            "VP",
+            "RHO",
+            "POROSIDADE",
+            "GR",
+            "ARGILOSIDADE"
+        ],
+        "target": "VS",
+        "train_wells": [
+            "Well 3",
+            "Well 4",
+            "Well 5",
+            "Well 6"
+        ],
+        "test_wells": [
+            "Well 1",
+            "Well 7"
+        ],
+        "model": "WellLogLSTM",
+        "model_params": {
+            "input_size": 6,
+            "hidden_size": 64,
+            "num_layers": 2,
+            "dropout": 0.3,
+            "batch_size": 32,
+            "num_epochs": 100,
+            "learning_rate": 0.001,
+            "weight_decay": 1e-05
+        },
+        "results": {
+            "rmse": 0.03174857050180435,
+            "mse": 0.0010079718194901943,
+            "r2": 0.9751978539091584
+        },
+        "training_time": 14.029579401016235,
+        "inference_time": 0.012915372848510742,
+        "notes": ""
+    },
+    "experiment_3": {
+        "features": [
+            "VS",
+            "VP",
+            "RHO",
+            "POROSIDADE",
+            "ARGILOSIDADE"
+        ],
+        "target": "VS",
+        "train_wells": [
+            "Well 3",
+            "Well 4",
+            "Well 5",
+            "Well 6"
+        ],
+        "test_wells": [
+            "Well 1",
+            "Well 7"
+        ],
+        "model": "WellLogLSTM",
+        "model_params": {
+            "input_size": 5,
+            "hidden_size": 64,
+            "num_layers": 2,
+            "dropout": 0.3,
+            "batch_size": 32,
+            "num_epochs": 100,
+            "learning_rate": 0.001,
+            "weight_decay": 1e-05
+        },
+        "results": {
+            "rmse": 0.031610745936632156,
+            "mse": 0.0009992391569539905,
+            "r2": 0.9751401507053485
+        },
+        "training_time": 21.14067029953003,
+        "inference_time": 0.013257741928100586,
+        "notes": ""
+    },
+    "experiment_4": {
+        "features": [
+            "VS",
+            "VP",
+            "RHO",
+            "POROSIDADE",
+            "GR"
+        ],
+        "target": "VS",
+        "train_wells": [
+            "Well 3",
+            "Well 4",
+            "Well 5",
+            "Well 6"
+        ],
+        "test_wells": [
+            "Well 1",
+            "Well 7"
+        ],
+        "model": "WellLogLSTM",
+        "model_params": {
+            "input_size": 5,
+            "hidden_size": 64,
+            "num_layers": 2,
+            "dropout": 0.3,
+            "batch_size": 32,
+            "num_epochs": 100,
+            "learning_rate": 0.001,
+            "weight_decay": 1e-05
+        },
+        "results": {
+            "rmse": 0.03341233357787132,
+            "mse": 0.0011163839371874928,
+            "r2": 0.9732508873118747
+        },
+        "training_time": 11.250073909759521,
+        "inference_time": 0.013538837432861328,
+        "notes": ""
+    },
+    "experiment_5": {
+        "features": [
+            "VS",
+            "VP",
+            "RHO",
+            "ARGILOSIDADE"
+        ],
+        "target": "VS",
+        "train_wells": [
+            "Well 3",
+            "Well 4",
+            "Well 5",
+            "Well 6"
+        ],
+        "test_wells": [
+            "Well 1",
+            "Well 7"
+        ],
+        "model": "WellLogLSTM",
+        "model_params": {
+            "input_size": 4,
+            "hidden_size": 64,
+            "num_layers": 2,
+            "dropout": 0.3,
+            "batch_size": 32,
+            "num_epochs": 100,
+            "learning_rate": 0.001,
+            "weight_decay": 1e-05
+        },
+        "results": {
+            "rmse": 0.032486144453287125,
+            "mse": 0.0010553494794294238,
+            "r2": 0.9737672169327863
+        },
+        "training_time": 11.986038208007812,
+        "inference_time": 0.013486623764038086,
+        "notes": ""
+    },
+    "experiment_6": {
+        "features": [
+            "VS",
+            "VP",
+            "RHO",
+            "GR"
+        ],
+        "target": "VS",
+        "train_wells": [
+            "Well 3",
+            "Well 4",
+            "Well 5",
+            "Well 6"
+        ],
+        "test_wells": [
+            "Well 1",
+            "Well 7"
+        ],
+        "model": "WellLogLSTM",
+        "model_params": {
+            "input_size": 4,
+            "hidden_size": 64,
+            "num_layers": 2,
+            "dropout": 0.3,
+            "batch_size": 32,
+            "num_epochs": 100,
+            "learning_rate": 0.001,
+            "weight_decay": 1e-05
+        },
+        "results": {
+            "rmse": 0.03209101781249046,
+            "mse": 0.0010298333363607526,
+            "r2": 0.9746812037096209
+        },
+        "training_time": 14.127652168273926,
+        "inference_time": 0.012769222259521484,
+        "notes": ""
+    },
+    "experiment_7": {
+        "features": [
+            "VS",
+            "VP",
+            "RHO",
+            "POROSIDADE"
+        ],
+        "target": "VS",
+        "train_wells": [
+            "Well 3",
+            "Well 4",
+            "Well 5",
+            "Well 6"
+        ],
+        "test_wells": [
+            "Well 1",
+            "Well 7"
+        ],
+        "model": "WellLogLSTM",
+        "model_params": {
+            "input_size": 4,
+            "hidden_size": 64,
+            "num_layers": 2,
+            "dropout": 0.3,
+            "batch_size": 32,
+            "num_epochs": 100,
+            "learning_rate": 0.001,
+            "weight_decay": 1e-05
+        },
+        "results": {
+            "rmse": 0.03189083933830261,
+            "mse": 0.0010170256718993187,
+            "r2": 0.9748542146773888
+        },
+        "training_time": 21.145442247390747,
+        "inference_time": 0.013236045837402344,
+        "notes": ""
+    }
+}

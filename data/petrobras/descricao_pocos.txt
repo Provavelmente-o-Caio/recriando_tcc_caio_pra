@@ -1,0 +1,37 @@
+Poço 1 
+Possui VP, RHO, SW, GR, VSH, CALIPER. 
+Também possui VPSP, mas não possui VS
+Marcadores: FDM, Mazul, Ksis, TOPO e BASE do reservatório
+
+Poço 2
+Possui VP, VS, RHO, SW, GR, VSH, CALIPER. 
+Também possui facies petrofisicas
+Marcadores: FDM, Mazul, Ksis, TOPO e BASE do reservatório
+
+Poço 3
+Possui VP, VS, RHO, SW, GR, VSH, CALIPER. 
+Coloquei 3 versões do perfil de densidade.
+Há um arrombamento da parede do poço em um intervalo de profundidade acima do reservatório. 
+Marcadores: FDM, Mazul, Ksis, TOPO e BASE do reservatório, e INICIO e FINAL do arrombamento.=
+
+Poço 4
+Possui VP, VS, RHO, SW, GR, VSH, CALIPER. 
+Levemente desviado e possui uma capa de gás.
+Marcadores: FDM, Mazul, Ksis, TOPO e BASE do reservatório, e contato G/O
+
+Poço 5  (Este poço será o benchmark para a construção do modelo de física de rochas com dados do geoslicer)
+Possui VP, VS, RHO, SW, GR, VSH, CALIPER e Facies.
+Levemente desviado e possui uma capa de gás.
+Marcadores: FDM, Mazul, Ksis, TOPO e BASE do reservatório, e contato G/O
+
+Poço 6
+Possui VP, VS, RHO, SW, GR, VSH, CALIPER e Facies.
+Possui uma capa de gás e contato óleo/agua
+Marcadores: FDM, Mazul, Ksis, TOPO e BASE do reservatório, contato G/O e contato O/A
+
+Poço 7
+Possui VP, RHO, SW, GR, VSH, CALIPER. 
+Não possui VS, e possui contato oleo/agua
+Marcadores: FDM, Mazul, Ksis, TOPO e BASE do reservatório e contato O/A.
+
+

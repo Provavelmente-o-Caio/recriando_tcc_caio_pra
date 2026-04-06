@@ -1,0 +1,14 @@
+[project]
+name = "recriando-tcc-caio-pra"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "joblib>=1.5.3",
+    "matplotlib>=3.10.8",
+    "numpy>=2.4.4",
+    "polars>=1.39.3",
+    "scikit-learn>=1.8.0",
+    "torch>=2.11.0",
+]
