@@ -269,7 +269,7 @@ class FinalModelTrainer:
             device = torch.device("mps")
         else:
             device = torch.device("cpu")
-            model.to(device)
+        model.to(device)
         model.eval()
 
         features_for_scaling = [
