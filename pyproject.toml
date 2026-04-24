@@ -6,8 +6,10 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "joblib>=1.5.3",
+    "lasio>=0.32",
     "matplotlib>=3.10.8",
     "numpy>=2.4.4",
+    "pandas>=3.0.2",
     "polars>=1.39.3",
     "scikit-learn>=1.8.0",
     "torch>=2.11.0",

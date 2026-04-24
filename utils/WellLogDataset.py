@@ -55,11 +55,11 @@ class WellLogAugmentation:
         # Add Gaussian noise
         if np.random.rand() < 0.5:  # 50% chance to apply noise
             noise = np.random.normal(0, self.noise_level, sequence.shape)
-            sequence += sequence
+            sequence = sequence + noise
 
         # Randomly scale the sequence
         if np.random.rand() < 0.5:  # 50% chance to apply scaling
             scale_factor = np.random.uniform(self.scale_range[0], self.scale_range[1])
-            sequence *= scale_factor
+            sequence = sequence * scale_factor
 
         return sequence
