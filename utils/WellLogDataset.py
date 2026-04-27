@@ -14,6 +14,7 @@ class WellLogDataset(Dataset):
         self.augmentation = augmentation
         self.sequences = []
         self.targets = []
+        self.training = True
         self._create_sequences()
 
     def _create_sequences(self):
@@ -25,6 +26,16 @@ class WellLogDataset(Dataset):
                     self.sequences.append(sequence_features)
                     self.targets.append(target_value)
 
+    def train(self):
+        """Ativa augmentação (modo treino)"""
+        self.training = True
+        return self
+
+    def eval(self):
+        """Desativa augmentação (modo inferência)"""
+        self.training = False
+        return self
+
     def __len__(self):
         return len(self.sequences)
 
@@ -32,8 +43,8 @@ class WellLogDataset(Dataset):
         sequence = np.array(self.sequences[index])  # Convert to a numpy array
 
         # Apply augmentation if specified
-        if self.augmentation:
-            sequence = self.augmentation(sequence, training=True)
+        if self.augmentation and self.training:
+            sequence = self.augmentation(sequence)
 
         sequence = torch.tensor(sequence, dtype=torch.float32)
         target = torch.tensor(self.targets[index], dtype=torch.float32).unsqueeze(-1)
@@ -45,10 +56,7 @@ class WellLogAugmentation:
         self.noise_level = noise_level
         self.scale_range = scale_range
 
-    def __call__(self, sequence, training=True):
-        if not training:
-            return sequence
-
+    def __call__(self, sequence):
         if isinstance(sequence, list):
             sequence = np.array(sequence)
 

@@ -18,6 +18,7 @@ from utils.training_utilities import (
     WarmupScheduler,
     calculate_metrics,
     train_model_with_validation_split,
+    set_deterministic,
 )
 from utils.WellLogDataset import WellLogAugmentation, WellLogDataset
 
@@ -43,6 +44,7 @@ class FinalModelTrainer:
         self.output_dir = output_dir or f"final_model_{self.timestamp}"
         os.makedirs(self.output_dir, exist_ok=True)
         os.makedirs(os.path.join(self.output_dir, "plots"), exist_ok=True)
+        set_deterministic(base_config.get("seed", 42))
 
     def preprocess_df(
         self,
@@ -210,7 +212,15 @@ class FinalModelTrainer:
         model_path = os.path.join(self.output_dir, "final_model.pth")
         scaler_path = os.path.join(self.output_dir, "final_scaler.pkl")
 
-        torch.save(trained_model.state_dict(), model_path)
+        torch.save(
+            {
+                "model_state_dict": trained_model.state_dict(),
+                "seed": self.base_config.get("seed", 42),
+                "features": features_to_use,
+                "hyperparams": self.best_config["hyperparams"],
+            },
+            model_path,
+        )
         joblib.dump(scaler, scaler_path)
 
         print(f"\nModel saved to: {model_path}")
@@ -293,27 +303,27 @@ class FinalModelTrainer:
             predictions = []
             depths = []
 
-            for i in range(len(well_features) - sequence_length):
-                seq_features = well_features[i : i + sequence_length]
-                input_tensor = (
-                    torch.tensor(seq_features, dtype=torch.float32)
-                    .unsqueeze(0)
-                    .to(device)
-                )
+            with torch.no_grad():
+                for i in range(len(well_features) - sequence_length):
+                    seq_features = well_features[i : i + sequence_length]
+                    input_tensor = (
+                        torch.tensor(seq_features, dtype=torch.float32)
+                        .unsqueeze(0)
+                        .to(device)
+                    )
 
-                with torch.no_grad():
                     output = model(input_tensor)
                     predictions.append(output.item())
 
-                if "DEPT" in well_df.columns:
-                    row_data = well_df.row(i + sequence_length, named=True)
-                    depths.append(row_data["DEPT"])
+                    if "DEPT" in well_df.columns:
+                        row_data = well_df.row(i + sequence_length, named=True)
+                        depths.append(row_data["DEPT"])
 
-            all_results[f"well_without_vs_{well_idx}"] = {
-                "predictions": predictions,
-                "depths": depths,
-                "has_ground_truth": False,
-            }
+                all_results[f"well_without_vs_{well_idx}"] = {
+                    "predictions": predictions,
+                    "depths": depths,
+                    "has_ground_truth": False,
+                }
 
             print(f"    Generated {len(predictions)} predictions")
             if predictions:
@@ -334,26 +344,26 @@ class FinalModelTrainer:
             actuals = []
             depths = []
 
-            for i in range(len(well_features) - sequence_length):
-                seq_features = well_features[i : i + sequence_length]
-                input_tensor = (
-                    torch.tensor(seq_features, dtype=torch.float32)
-                    .unsqueeze(0)
-                    .to(device)
-                )
+            with torch.no_grad():
+                for i in range(len(well_features) - sequence_length):
+                    seq_features = well_features[i : i + sequence_length]
+                    input_tensor = (
+                        torch.tensor(seq_features, dtype=torch.float32)
+                        .unsqueeze(0)
+                        .to(device)
+                    )
 
-                with torch.no_grad():
                     output = model(input_tensor)
                     predictions.append(output.item())
 
-                row_data = well_df.row(i + sequence_length, named=True)
-                actual_val = row_data.get(target_feature)
-                actuals.append(
-                    actual_val if not _is_missing_value(actual_val) else np.nan
-                )
+                    row_data = well_df.row(i + sequence_length, named=True)
+                    actual_val = row_data.get(target_feature)
+                    actuals.append(
+                        actual_val if not _is_missing_value(actual_val) else np.nan
+                    )
 
-                if "DEPT" in well_df.columns:
-                    depths.append(row_data["DEPT"])
+                    if "DEPT" in well_df.columns:
+                        depths.append(row_data["DEPT"])
 
             metrics = calculate_metrics(predictions, actuals)
 

@@ -7,6 +7,17 @@ from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_norm_
 import copy
 import polars as pl
+import random
+
+
+def set_deterministic(seed: int = 42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.use_deterministic_algorithms(True, warn_only=True)
 
 
 def add_derived_features(df: pl.DataFrame) -> pl.DataFrame:
@@ -174,6 +185,7 @@ def train_model_with_validation_split(
 
     for epoch in range(num_epochs):
         model.train()
+        train_loader_split.dataset.dataset.train()
         total_loss = 0
         epoch_train_predictions = []
         epoch_train_targets = []
@@ -207,6 +219,7 @@ def train_model_with_validation_split(
 
         # Validation
         model.eval()
+        train_loader_split.dataset.dataset.eval()
         total_val_loss = 0.0
         with torch.no_grad():
             for features, targets in val_loader:
