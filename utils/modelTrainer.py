@@ -84,158 +84,233 @@ class FinalModelTrainer:
 
         return processed_df
 
+    def _resolve_cluster_config(self, cluster_name: str) -> dict[str, Any] | None:
+        if "features" in self.best_config and "hyperparams" in self.best_config:
+            return self.best_config
+
+        cluster_config = self.best_config.get(cluster_name)
+        if isinstance(cluster_config, dict):
+            return cluster_config
+        return None
+
+    def _get_device(self) -> torch.device:
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        if torch.backends.mps.is_available():
+            return torch.device("mps")
+        return torch.device("cpu")
+
     def train_final_model(
         self, wells_with_vs: list[pl.DataFrame], target_feature: str = "VS"
-    ):
-        """Train final model on all wells with VS."""
+    ) -> dict:
+        """Treina um modelo final por cluster geológico."""
         print(f"\n{'=' * 80}")
-        print("TRAINING FINAL MODEL ON ALL WELLS WITH VS")
+        print("TRAINING FINAL MODELS PER CLUSTER")
         print(f"{'=' * 80}")
 
-        features_to_use = self.best_config["features"]
-        hyperparams = self.best_config["hyperparams"]
-
-        print(f"Features: {features_to_use}")
-        print(f"Hyperparameters: {hyperparams}")
+        clusters = self.base_config.get("clusters", {})
+        if not clusters:
+            raise ValueError("base_config must contain 'clusters' key")
 
         if not wells_with_vs:
             raise ValueError("wells_with_vs cannot be empty")
 
-        combined_train_df = pl.concat(wells_with_vs, how="vertical_relaxed")
-        combined_train_df_cleaned = combined_train_df.filter(
-            pl.col(target_feature).is_not_null() & ~pl.col(target_feature).is_nan()
-        )
-
-        scaler = RobustScaler()
-        features_for_scaling = [
-            feature for feature in features_to_use if feature != "DEPT"
-        ]
-        if features_for_scaling:
-            scaler.fit(
-                combined_train_df_cleaned.select(features_for_scaling).to_numpy()
-            )
-
-        processed_train_dfs = []
-        for df in wells_with_vs:
-            processed_df = self.preprocess_df(
-                df, scaler, features_for_scaling, target_feature
-            )
-            processed_train_dfs.append(processed_df)
-
-        all_train_features = []
-        all_train_targets = []
-        for df in processed_train_dfs:
-            all_train_features.extend(df.select(features_to_use).to_numpy().tolist())
-            all_train_targets.extend(df.select(target_feature).to_series().to_list())
-
-        print(f"Total training samples: {len(all_train_features)}")
-
         sequence_length = self.base_config["sequence_length"]
         mask_value = self.base_config["mask_value"]
+        trained_clusters = {}
 
-        augmentation = WellLogAugmentation(noise_level=0.01, scale_range=(0.95, 1.05))
-        train_dataset = WellLogDataset(
-            all_train_features,
-            all_train_targets,
-            sequence_length,
-            mask_value,
-            augmentation=augmentation,
-        )
-        train_loader = DataLoader(
-            train_dataset, batch_size=hyperparams["batch_size"], shuffle=True
-        )
+        for cluster_name, cluster_indices in clusters.items():
+            print(f"\n{'=' * 80}")
+            print(f"CLUSTER {cluster_name} — Wells {cluster_indices}")
+            print(f"{'=' * 80}")
 
-        print(f"Training sequences: {len(train_dataset)}")
+            # Buscar config específica do cluster, com fallback para uma config global.
+            cluster_config = self._resolve_cluster_config(cluster_name)
+            if cluster_config is None:
+                print(f"  No best config found for cluster {cluster_name}, skipping")
+                continue
 
-        model = Rebuilt_SAIDNN(
-            n_features=len(features_to_use),
-            sequence_length=sequence_length,
-            embed_dim=hyperparams["embed_dim"],
-            num_heads=hyperparams["num_heads"],
-            num_blocks=hyperparams["num_blocks"],
-            dropout=hyperparams["dropout"],
-            use_attention_pooling=True,
-        )
+            features_to_use = cluster_config["features"]
+            hyperparams = cluster_config["hyperparams"]
+            features_for_scaling = [f for f in features_to_use if f != "DEPT"]
 
-        if hyperparams["criterion_type"] == "huber":
-            criterion = nn.HuberLoss(delta=1.0)
-        elif hyperparams["criterion_type"] == "mse":
-            criterion = nn.MSELoss()
-        else:
-            criterion = nn.L1Loss()
+            print(f"  Features: {features_to_use}")
+            print(f"  Hyperparameters: {hyperparams}")
 
-        if hyperparams["optimizer_type"] == "adam":
-            optimizer = torch.optim.Adam(
-                model.parameters(), lr=hyperparams["learning_rate"]
-            )
-        elif hyperparams["optimizer_type"] == "adamw":
-            optimizer = torch.optim.AdamW(
-                model.parameters(), lr=hyperparams["learning_rate"]
-            )
-        else:
-            optimizer = torch.optim.SGD(
-                model.parameters(), lr=hyperparams["learning_rate"], momentum=0.9
+            # Agregar todos os poços do cluster
+            cluster_wells_dfs = [wells_with_vs[i] for i in cluster_indices]
+            combined_df = pl.concat(cluster_wells_dfs, how="vertical_relaxed")
+            combined_df_cleaned = combined_df.filter(
+                pl.col(target_feature).is_not_null() & ~pl.col(target_feature).is_nan()
             )
 
-        if hyperparams["scheduler_type"] == "plateau":
-            base_scheduler = ReduceLROnPlateau(
-                optimizer, mode="min", factor=0.5, patience=10
+            if combined_df_cleaned.height == 0:
+                print(f"  No valid training data for cluster {cluster_name}, skipping")
+                continue
+
+            cluster_center_values = (
+                combined_df_cleaned.select(features_for_scaling).to_numpy().mean(axis=0)
             )
-        elif hyperparams["scheduler_type"] == "cosine":
-            base_scheduler = CosineAnnealingLR(
-                optimizer, T_max=self.base_config["num_epochs"]
+            cluster_feature_center = {
+                feature: float(cluster_center_values[index])
+                for index, feature in enumerate(features_for_scaling)
+            }
+
+            # Scaler específico do cluster — fitado apenas nos dados do cluster
+            scaler = RobustScaler()
+            scaler.fit(combined_df_cleaned.select(features_for_scaling).to_numpy())
+
+            # Preparar features e targets
+            all_train_features = []
+            all_train_targets = []
+            for df in cluster_wells_dfs:
+                processed_df = self.preprocess_df(
+                    df, scaler, features_for_scaling, target_feature
+                )
+                all_train_features.extend(
+                    processed_df.select(features_to_use).to_numpy().tolist()
+                )
+                all_train_targets.extend(
+                    processed_df.select(target_feature).to_series().to_list()
+                )
+
+            print(f"  Total training samples: {len(all_train_features)}")
+
+            # Dataset e DataLoader
+            augmentation = WellLogAugmentation(
+                noise_level=0.01, scale_range=(0.95, 1.05)
             )
-        else:
-            base_scheduler = StepLR(optimizer, step_size=30, gamma=0.1)
+            train_dataset = WellLogDataset(
+                all_train_features,
+                all_train_targets,
+                sequence_length,
+                mask_value,
+                augmentation=augmentation,
+            )
+            train_loader = DataLoader(
+                train_dataset,
+                batch_size=hyperparams["batch_size"],
+                shuffle=True,
+            )
+            print(f"  Training sequences: {len(train_dataset)}")
 
-        scheduler = WarmupScheduler(
-            optimizer, warmup_epochs=5, base_scheduler=base_scheduler
-        )
+            # Modelo
+            model = Rebuilt_SAIDNN(
+                n_features=len(features_to_use),
+                sequence_length=sequence_length,
+                embed_dim=hyperparams["embed_dim"],
+                num_heads=hyperparams["num_heads"],
+                num_blocks=hyperparams["num_blocks"],
+                dropout=hyperparams["dropout"],
+                use_attention_pooling=True,
+            )
 
-        print("\nTraining final model...")
-        trained_model, history, best_val_loss = train_model_with_validation_split(
-            model,
-            train_loader,
-            criterion,
-            optimizer,
-            scheduler,
-            self.base_config["num_epochs"],
-            self.base_config["patience"],
-            verbose=True,
-        )
+            # Criterion
+            if hyperparams["criterion_type"] == "huber":
+                criterion = nn.HuberLoss(delta=1.0)
+            elif hyperparams["criterion_type"] == "mse":
+                criterion = nn.MSELoss()
+            else:
+                criterion = nn.L1Loss()
 
-        print("\nTraining complete!")
-        print(f"Best validation loss: {best_val_loss:.6f}")
-        print(f"Final training R²: {history['train_r2'][-1]:.4f}")
-        print(f"Final validation R²: {history['val_r2'][-1]:.4f}")
+            # Optimizer
+            if hyperparams["optimizer_type"] == "adam":
+                optimizer = torch.optim.Adam(
+                    model.parameters(), lr=hyperparams["learning_rate"]
+                )
+            elif hyperparams["optimizer_type"] == "adamw":
+                optimizer = torch.optim.AdamW(
+                    model.parameters(), lr=hyperparams["learning_rate"]
+                )
+            else:
+                optimizer = torch.optim.SGD(
+                    model.parameters(), lr=hyperparams["learning_rate"], momentum=0.9
+                )
 
-        model_path = os.path.join(self.output_dir, "final_model.pth")
-        scaler_path = os.path.join(self.output_dir, "final_scaler.pkl")
+            # Scheduler
+            if hyperparams["scheduler_type"] == "plateau":
+                base_scheduler = ReduceLROnPlateau(
+                    optimizer, mode="min", factor=0.5, patience=10
+                )
+            elif hyperparams["scheduler_type"] == "cosine":
+                base_scheduler = CosineAnnealingLR(
+                    optimizer, T_max=self.base_config["num_epochs"]
+                )
+            else:
+                base_scheduler = StepLR(optimizer, step_size=30, gamma=0.1)
 
-        torch.save(
-            {
-                "model_state_dict": trained_model.state_dict(),
-                "seed": self.base_config.get("seed", 42),
+            scheduler = WarmupScheduler(
+                optimizer, warmup_epochs=5, base_scheduler=base_scheduler
+            )
+
+            # Treino
+            print(f"\n  Training cluster {cluster_name}...")
+            trained_model, history, best_val_loss = train_model_with_validation_split(
+                model,
+                train_loader,
+                criterion,
+                optimizer,
+                scheduler,
+                self.base_config["num_epochs"],
+                self.base_config["patience"],
+                verbose=True,
+            )
+
+            print("  Training complete!")
+            print(f"  Best validation loss: {best_val_loss:.6f}")
+            print(f"  Final training R²: {history['train_r2'][-1]:.4f}")
+            print(f"  Final validation R²: {history['val_r2'][-1]:.4f}")
+
+            # Salvar modelo e scaler do cluster
+            model_path = os.path.join(
+                self.output_dir, f"final_model_cluster_{cluster_name}.pth"
+            )
+            scaler_path = os.path.join(
+                self.output_dir, f"final_scaler_cluster_{cluster_name}.pkl"
+            )
+
+            torch.save(
+                {
+                    "model_state_dict": trained_model.state_dict(),
+                    "seed": self.base_config.get("seed", 42),
+                    "features": features_to_use,
+                    "hyperparams": hyperparams,
+                    "cluster": cluster_name,
+                    "cluster_wells": cluster_indices,
+                },
+                model_path,
+            )
+            joblib.dump(scaler, scaler_path)
+
+            print(f"  Model saved to: {model_path}")
+            print(f"  Scaler saved to: {scaler_path}")
+
+            # Salvar histórico e plot por cluster
+            history_path = os.path.join(
+                self.output_dir, f"training_history_cluster_{cluster_name}.json"
+            )
+            with open(history_path, "w", encoding="utf-8") as f:
+                json.dump(history, f, indent=2)
+
+            self.plot_training_history(history, cluster_name=cluster_name)
+
+            # Guardar em memória para uso imediato
+            trained_clusters[cluster_name] = {
+                "model": trained_model,
+                "scaler": scaler,
                 "features": features_to_use,
-                "hyperparams": self.best_config["hyperparams"],
-            },
-            model_path,
-        )
-        joblib.dump(scaler, scaler_path)
+                "features_for_scaling": features_for_scaling,
+                "feature_center": cluster_feature_center,
+                "cluster_wells": cluster_indices,
+            }
 
-        print(f"\nModel saved to: {model_path}")
-        print(f"Scaler saved to: {scaler_path}")
+        return trained_clusters
 
-        history_path = os.path.join(self.output_dir, "training_history.json")
-        with open(history_path, "w", encoding="utf-8") as file_handle:
-            json.dump(history, file_handle, indent=2)
-
-        self.plot_training_history(history)
-
-        return trained_model, scaler, features_to_use
-
-    def plot_training_history(self, history: dict[str, list[float]]) -> None:
+    def plot_training_history(
+        self, history: dict[str, list[float]], cluster_name: str
+    ) -> None:
         """Plot training and validation metrics."""
+        suffix = f"_cluster_{cluster_name}" if cluster_name else ""
         fig, axes = plt.subplots(1, 2, figsize=(15, 5))
 
         axes[0].plot(history["train_loss"], label="Training Loss", linewidth=2)
@@ -257,132 +332,160 @@ class FinalModelTrainer:
         axes[1].grid(True, alpha=0.3)
 
         plt.tight_layout()
-        plot_path = os.path.join(self.output_dir, "plots", "training_history.png")
+        plot_path = os.path.join(
+            self.output_dir, "plots", f"training_history{suffix}.png"
+        )
         plt.savefig(plot_path, dpi=300, bbox_inches="tight")
         print(f"Training history plot saved to: {plot_path}")
         plt.close()
 
     def predict_on_wells(
         self,
-        model,
-        scaler,
-        features_to_use,
-        wells_without_vs,
-        wells_with_vs,
-        target_feature="VS",
-    ):
-        """Make predictions on wells."""
-        sequence_length = self.base_config["sequence_length"]
-        if torch.cuda.is_available():
-            device = torch.device("cuda")
-        elif torch.backends.mps.is_available():
-            device = torch.device("mps")
-        else:
-            device = torch.device("cpu")
-        model.to(device)
-        model.eval()
+        trained_clusters: dict[str, dict[str, Any]],
+        wells_without_vs: list[pl.DataFrame],
+        wells_with_vs: list[pl.DataFrame],
+        target_feature: str = "VS",
+    ) -> dict[str, dict[str, Any]]:
+        """Predict wells using the model/scaler that best matches each cluster."""
+        if not trained_clusters:
+            raise ValueError("trained_clusters cannot be empty")
 
-        features_for_scaling = [
-            feature for feature in features_to_use if feature != "DEPT"
-        ]
-        all_results = {}
+        sequence_length = self.base_config["sequence_length"]
+        device = self._get_device()
+        all_results: dict[str, dict[str, Any]] = {}
+
+        def assign_cluster(well_df: pl.DataFrame) -> str:
+            best_cluster_name: str | None = None
+            best_distance = float("inf")
+
+            for cluster_name, cluster_data in trained_clusters.items():
+                cluster_features = cluster_data.get("features_for_scaling")
+                if not cluster_features:
+                    cluster_features = [
+                        feature
+                        for feature in cluster_data["features"]
+                        if feature != "DEPT"
+                    ]
+
+                if any(feature not in well_df.columns for feature in cluster_features):
+                    continue
+
+                raw_values = well_df.select(cluster_features).to_numpy()
+                if raw_values.size == 0:
+                    continue
+
+                well_stats = np.nanmean(raw_values, axis=0)
+                if np.any(np.isnan(well_stats)):
+                    continue
+
+                cluster_center_map = cluster_data.get("feature_center", {})
+                if not cluster_center_map:
+                    continue
+
+                cluster_center = np.array(
+                    [cluster_center_map[feature] for feature in cluster_features],
+                    dtype=np.float32,
+                )
+                scaler = cluster_data["scaler"]
+                well_normalized = scaler.transform([well_stats])[0]
+                cluster_normalized = scaler.transform([cluster_center])[0]
+                distance = float(np.linalg.norm(well_normalized - cluster_normalized))
+
+                if distance < best_distance:
+                    best_distance = distance
+                    best_cluster_name = cluster_name
+
+            if best_cluster_name is None:
+                best_cluster_name = next(iter(trained_clusters))
+
+            return best_cluster_name
+
+        def predict_well(
+            well_df: pl.DataFrame, well_name: str, has_ground_truth: bool
+        ) -> None:
+            cluster_name = assign_cluster(well_df)
+            cluster_data = trained_clusters[cluster_name]
+            model = cluster_data["model"]
+            scaler = cluster_data["scaler"]
+            features_to_use = cluster_data["features"]
+            features_for_scaling = cluster_data.get("features_for_scaling", [])
+
+            print(f"  {well_name} → Cluster {cluster_name}")
+
+            processed_df = self.preprocess_df(
+                well_df, scaler, features_for_scaling, target_feature
+            )
+            well_features = processed_df.select(features_to_use).to_numpy()
+
+            predictions: list[float] = []
+            actuals: list[float] = []
+            depths: list[float] = []
+
+            model.to(device)
+            model.eval()
+
+            with torch.no_grad():
+                for start_index in range(len(well_features) - sequence_length):
+                    sequence_features = well_features[
+                        start_index : start_index + sequence_length
+                    ]
+                    input_tensor = (
+                        torch.tensor(sequence_features, dtype=torch.float32)
+                        .unsqueeze(0)
+                        .to(device)
+                    )
+
+                    output = model(input_tensor)
+                    predictions.append(float(output.item()))
+
+                    row_data = well_df.row(start_index + sequence_length, named=True)
+                    if has_ground_truth:
+                        actual_value = row_data.get(target_feature)
+                        actuals.append(float(actual_value))
+
+                    if "DEPT" in well_df.columns:
+                        depths.append(float(row_data["DEPT"]))
+
+            result_entry: dict[str, Any] = {
+                "predictions": predictions,
+                "depths": depths,
+                "has_ground_truth": has_ground_truth,
+                "cluster": cluster_name,
+            }
+
+            if has_ground_truth:
+                metrics = calculate_metrics(predictions, actuals)
+                result_entry["actuals"] = actuals
+                result_entry["metrics"] = metrics
+                print(f"    Generated {len(predictions)} predictions")
+                print(f"    R²: {metrics['R2']:.4f}")
+                print(f"    RMSE: {metrics['RMSE']:.4f}")
+                print(f"    MSE: {metrics['MSE']:.4f}")
+                print(f"    MAE: {metrics['MAE']:.4f}")
+            else:
+                print(f"    Generated {len(predictions)} predictions")
+                if predictions:
+                    print(
+                        f"    VS range: [{np.min(predictions):.3f}, {np.max(predictions):.3f}]"
+                    )
+
+            all_results[well_name] = result_entry
 
         print(f"\n{'=' * 80}")
         print("MAKING PREDICTIONS")
         print(f"{'=' * 80}")
 
         print(f"\nPredicting on {len(wells_without_vs)} wells WITHOUT VS:")
-        for well_idx, well_df in enumerate(wells_without_vs):
-            print(f"\n  Well {well_idx + 1}/{len(wells_without_vs)}")
-
-            processed_df = self.preprocess_df(
-                well_df, scaler, features_for_scaling, target_feature
-            )
-            well_features = processed_df.select(features_to_use).to_numpy()
-
-            predictions = []
-            depths = []
-
-            with torch.no_grad():
-                for i in range(len(well_features) - sequence_length):
-                    seq_features = well_features[i : i + sequence_length]
-                    input_tensor = (
-                        torch.tensor(seq_features, dtype=torch.float32)
-                        .unsqueeze(0)
-                        .to(device)
-                    )
-
-                    output = model(input_tensor)
-                    predictions.append(output.item())
-
-                    if "DEPT" in well_df.columns:
-                        row_data = well_df.row(i + sequence_length, named=True)
-                        depths.append(row_data["DEPT"])
-
-                all_results[f"well_without_vs_{well_idx}"] = {
-                    "predictions": predictions,
-                    "depths": depths,
-                    "has_ground_truth": False,
-                }
-
-            print(f"    Generated {len(predictions)} predictions")
-            if predictions:
-                print(
-                    f"    VS range: [{np.min(predictions):.3f}, {np.max(predictions):.3f}]"
-                )
+        for well_index, well_df in enumerate(wells_without_vs):
+            print(f"\n  Well {well_index + 1}/{len(wells_without_vs)}")
+            predict_well(well_df, f"well_without_vs_{well_index}", False)
 
         print(f"\nValidating on {len(wells_with_vs)} wells WITH VS:")
-        for well_idx, well_df in enumerate(wells_with_vs):
-            print(f"\n  Well {well_idx + 1}/{len(wells_with_vs)}")
-
-            processed_df = self.preprocess_df(
-                well_df, scaler, features_for_scaling, target_feature
-            )
-            well_features = processed_df.select(features_to_use).to_numpy()
-
-            predictions = []
-            actuals = []
-            depths = []
-
-            with torch.no_grad():
-                for i in range(len(well_features) - sequence_length):
-                    seq_features = well_features[i : i + sequence_length]
-                    input_tensor = (
-                        torch.tensor(seq_features, dtype=torch.float32)
-                        .unsqueeze(0)
-                        .to(device)
-                    )
-
-                    output = model(input_tensor)
-                    predictions.append(output.item())
-
-                    row_data = well_df.row(i + sequence_length, named=True)
-                    actual_val = row_data.get(target_feature)
-                    actuals.append(
-                        actual_val if not _is_missing_value(actual_val) else np.nan
-                    )
-
-                    if "DEPT" in well_df.columns:
-                        depths.append(row_data["DEPT"])
-
-            metrics = calculate_metrics(predictions, actuals)
-
-            all_results[f"well_with_vs_{well_idx}"] = {
-                "predictions": predictions,
-                "actuals": actuals,
-                "depths": depths,
-                "metrics": metrics,
-                "has_ground_truth": True,
-            }
-
-            print(f"    Generated {len(predictions)} predictions")
-            print(f"    R²: {metrics['R2']:.4f}")
-            print(f"    RMSE: {metrics['RMSE']:.4f}")
-            print(f"    MSE: {metrics['MSE']:.4f}")
-            print(f"    MAE: {metrics['MAE']:.4f}")
+        for well_index, well_df in enumerate(wells_with_vs):
+            print(f"\n  Well {well_index + 1}/{len(wells_with_vs)}")
+            predict_well(well_df, f"well_with_vs_{well_index}", True)
 
         predictions_path = os.path.join(self.output_dir, "all_predictions.json")
-
         serializable_results = {}
         for key, value in all_results.items():
             serializable_results[key] = {
@@ -399,7 +502,7 @@ class FinalModelTrainer:
 
         return all_results
 
-    def plot_predictions(self, all_results):
+    def plot_predictions(self, all_results: dict[str, dict[str, Any]]):
         """Generate comprehensive prediction plots."""
         print(f"\n{'=' * 80}")
         print("GENERATING PLOTS")
@@ -621,7 +724,9 @@ class FinalModelTrainer:
             print(f"Error distribution plot saved to: {plot_path}")
             plt.close()
 
-    def generate_summary_report(self, all_results, best_config):
+    def generate_summary_report(
+        self, all_results: dict[str, dict[str, Any]], best_config: dict[str, Any]
+    ):
         """Generate comprehensive summary report."""
         report_path = os.path.join(self.output_dir, "SUMMARY_REPORT.txt")
 
@@ -637,15 +742,35 @@ class FinalModelTrainer:
             file_handle.write("-" * 80 + "\n")
             file_handle.write("BEST MODEL CONFIGURATION\n")
             file_handle.write("-" * 80 + "\n")
-            file_handle.write(f"Features: {best_config['features']}\n")
-            file_handle.write("Hyperparameters:\n")
-            for key, value in best_config["hyperparams"].items():
-                file_handle.write(f"  {key}: {value}\n")
-            file_handle.write("\nAverage Cross-Validation Performance:\n")
-            file_handle.write(f"  R²: {best_config.get('avg_test_r2', 'N/A')}\n")
-            file_handle.write(f"  RMSE: {best_config.get('avg_test_rmse', 'N/A')}\n")
-            file_handle.write(f"  MSE: {best_config.get('avg_test_mse', 'N/A')}\n")
-            file_handle.write(f"  MAE: {best_config.get('avg_test_mae', 'N/A')}\n\n")
+
+            # If best_config is a single config (legacy), print directly
+            if isinstance(best_config, dict) and "features" in best_config:
+                file_handle.write(f"Features: {best_config['features']}\n")
+                file_handle.write("Hyperparameters:\n")
+                for key, value in best_config.get("hyperparams", {}).items():
+                    file_handle.write(f"  {key}: {value}\n")
+                file_handle.write("\nAverage Cross-Validation Performance:\n")
+                file_handle.write(f"  R²: {best_config.get('avg_test_r2', 'N/A')}\n")
+                file_handle.write(
+                    f"  RMSE: {best_config.get('avg_test_rmse', 'N/A')}\n"
+                )
+                file_handle.write(f"  MSE: {best_config.get('avg_test_mse', 'N/A')}\n")
+                file_handle.write(
+                    f"  MAE: {best_config.get('avg_test_mae', 'N/A')}\n\n"
+                )
+            else:
+                # Assume mapping cluster_name -> info
+                for cluster_name, info in best_config.items():
+                    file_handle.write(f"Cluster: {cluster_name}\n")
+                    file_handle.write(f"  Wells: {info.get('cluster_wells', 'N/A')}\n")
+                    file_handle.write(f"  Features: {info.get('features', 'N/A')}\n")
+                    file_handle.write(
+                        f"  Hyperparameters: {info.get('hyperparams', 'N/A')}\n"
+                    )
+                    file_handle.write(
+                        f"  Avg R²: {info.get('avg_r2', 'N/A')} | Best fold R²: {info.get('best_fold_r2', 'N/A')}\n"
+                    )
+                    file_handle.write("\n")
 
             wells_without_vs = {
                 key: value
@@ -737,6 +862,17 @@ def load_best_configuration(experiment_dir: str):
         os.path.join("experiments", experiment_dir)
     ):
         experiment_dir = os.path.join("experiments", experiment_dir)
+
+    best_config_path = os.path.join(experiment_dir, "best_config.json")
+    if os.path.exists(best_config_path):
+        with open(best_config_path, "r", encoding="utf-8") as file_handle:
+            best_config = json.load(file_handle)
+
+        print(f"\n{'=' * 80}")
+        print("LOADED BEST CLUSTER CONFIGURATION")
+        print(f"{'=' * 80}")
+        print(f"Clusters: {list(best_config.keys())}")
+        return best_config
 
     averaged_results_path = os.path.join(experiment_dir, "averaged_results.json")
 

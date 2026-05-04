@@ -1,13 +1,14 @@
-import numpy as np
+import copy
+import random
 from typing import List
-from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+
+import numpy as np
+import polars as pl
 import torch
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from torch.nn.utils import clip_grad_norm_
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
-from torch.nn.utils import clip_grad_norm_
-import copy
-import polars as pl
-import random
 
 
 def set_deterministic(seed: int = 42):
@@ -146,7 +147,7 @@ def train_model_with_validation_split(
     scheduler,
     num_epochs,
     patience,
-    val_split=0.2,
+    val_split=0.3,
     verbose=True,
 ):
     if torch.cuda.is_available():
@@ -212,7 +213,7 @@ def train_model_with_validation_split(
             epoch_train_targets.extend(targets.detach().cpu().numpy().flatten())
 
             total_loss += loss.item() * features.size(0)
-        avg_train_loss = total_loss / len(train_loader_split)
+        avg_train_loss = total_loss / len(train_loader_split.dataset)
         history["train_loss"].append(avg_train_loss)
         train_metrics = calculate_metrics(epoch_train_predictions, epoch_train_targets)
         history["train_r2"].append(train_metrics["R2"])
