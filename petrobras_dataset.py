@@ -84,6 +84,8 @@ def _get_all_raw_files() -> List[str]:
     directory = "data/petrobras/las_files"
     all_files = sorted(os.listdir(directory))
 
+    print(all_files)
+
     return list(filter(lambda file_name: ".las" in file_name, all_files))
 
 

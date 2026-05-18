@@ -17,16 +17,10 @@ from selfAttention import Rebuilt_SAIDNN
 from utils.training_utilities import (
     WarmupScheduler,
     calculate_metrics,
-    train_model_with_validation_split,
     set_deterministic,
+    train_model_with_validation_split,
 )
 from utils.WellLogDataset import WellLogAugmentation, WellLogDataset
-
-
-def _is_missing_value(value: Any) -> bool:
-    if value is None:
-        return True
-    return isinstance(value, float) and np.isnan(value)
 
 
 class FinalModelTrainer:
