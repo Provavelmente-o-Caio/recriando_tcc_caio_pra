@@ -1,0 +1,6 @@
+D:\Caio\recriando_tcc_caio_pra\missing_data\bin\Debug\missing_data.dll
+D:\Caio\recriando_tcc_caio_pra\missing_data\bin\Debug\missing_data.pdb
+D:\Caio\recriando_tcc_caio_pra\missing_data\obj\Debug\missing_data.csproj.AssemblyReference.cache
+D:\Caio\recriando_tcc_caio_pra\missing_data\obj\Debug\missing_data.csproj.CoreCompileInputs.cache
+D:\Caio\recriando_tcc_caio_pra\missing_data\obj\Debug\missing_data.dll
+D:\Caio\recriando_tcc_caio_pra\missing_data\obj\Debug\missing_data.pdb

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<InstalledPlugins xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Plugin>
+    <Name>Plugin</Name>
+    <Contact>caiofecardoso@hotmail.com</Contact>
+    <PluginTypeName>missing_data.Plugin, missing_data, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</PluginTypeName>
+    <PluginUri>https://www.pluginuri.info/</PluginUri>
+    <PluginId>://missing_data.Plugin/1.0.0.0</PluginId>
+    <Trust PublicKeyToken="">Default</Trust>
+    <ReleaseDate>2026-05-18</ReleaseDate>
+    <Author>Caio Ferreira Cardoso</Author>
+    <AppVersion>2023.1</AppVersion>
+    <Modules>
+      <Module TypeName="missing_data.Module, missing_data, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" />
+    </Modules>
+    <Assemblies>
+      <Assembly Name="missing_data, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" />
+    </Assemblies>
+    <assemblyBinding />
+    <StartMode>Startup</StartMode>
+    <StartupAction>None</StartupAction>
+  </Plugin>
+</InstalledPlugins>

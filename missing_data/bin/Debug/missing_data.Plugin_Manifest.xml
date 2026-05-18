@@ -1,0 +1,6 @@
+<Deployment>
+  <Files>
+    <File Name="missing_data.dll" />
+    <File Name="missing_data.pdb" />
+  </Files>
+</Deployment>
