@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime
+from typing import Any, Dict, List, TypedDict
 
 import joblib
 import numpy as np
@@ -21,6 +22,32 @@ from utils.training_utilities import (
     set_deterministic,
 )
 from utils.WellLogDataset import WellLogAugmentation, WellLogDataset
+
+
+class TestMetrics(TypedDict, total=False):
+    R2: float
+    RMSE: float
+    MSE: float
+    MAE: float
+    r2: float
+    rmse: float
+    mse: float
+    mae: float
+    loss: float
+
+
+class ClusterBestConfig(TypedDict):
+    cluster: str
+    cluster_wells: List[int]
+    features: List[str]
+    hyperparams: Dict[str, Any]
+    avg_r2: float
+    std_r2: float
+    best_fold_r2: float
+    test_metrics: TestMetrics
+    model_path: str
+    scaler_path: str
+    model_id: str
 
 
 class CrossFoldHyperparameterExperiment:
@@ -416,7 +443,7 @@ class CrossFoldHyperparameterExperiment:
             return
 
         clusters = self.base_config.get("clusters", {"default": []})
-        best_per_cluster = {}
+        best_per_cluster: Dict[str, ClusterBestConfig] = {}
 
         for cluster_name in clusters:
             # Filtrar apenas resultados deste cluster
@@ -456,16 +483,16 @@ class CrossFoldHyperparameterExperiment:
 
             best_per_cluster[cluster_name] = {
                 "cluster": cluster_name,
-                "cluster_wells": clusters[cluster_name],
-                "features": best_result["features"],
-                "hyperparams": best_result["hyperparams"],
+                "cluster_wells": list(clusters[cluster_name]),
+                "features": list(best_result["features"]),
+                "hyperparams": dict(best_result["hyperparams"]),
                 "avg_r2": float(np.mean(config_scores[best_config_key])),
                 "std_r2": float(np.std(config_scores[best_config_key])),
-                "best_fold_r2": best_result["test_metrics"]["r2"],
+                "best_fold_r2": float(best_result["test_metrics"]["r2"]),
                 "test_metrics": best_result["test_metrics"],
-                "model_path": best_result["model_path"],
-                "scaler_path": best_result["scaler_path"],
-                "model_id": best_result["model_id"],
+                "model_path": str(best_result["model_path"]),
+                "scaler_path": str(best_result["scaler_path"]),
+                "model_id": str(best_result["model_id"]),
             }
 
         # Salvar JSON

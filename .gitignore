@@ -13,3 +13,7 @@ wheels/
 
 # experiments
 experiments/
+well_similarity_analysis/
+
+# IDEs
+.idea/

@@ -48,7 +48,7 @@ class FinalModelTrainer:
         target_feature: str,
         mask_value: float = -1.0,
     ) -> pl.DataFrame:
-        processed_df = df.clone()
+        processed_df: pl.DataFrame = df.clone()
 
         if len(processed_df) > 0 and features_for_scaling:
             feature_matrix = processed_df.select(features_for_scaling).to_numpy()
@@ -435,10 +435,21 @@ class FinalModelTrainer:
                     row_data = well_df.row(start_index + sequence_length, named=True)
                     if has_ground_truth:
                         actual_value = row_data.get(target_feature)
-                        actuals.append(float(actual_value))
+                        if actual_value is None:
+                            actuals.append(np.nan)
+                        else:
+                            try:
+                                actuals.append(float(actual_value))
+                            except (TypeError, ValueError):
+                                actuals.append(np.nan)
 
                     if "DEPT" in well_df.columns:
-                        depths.append(float(row_data["DEPT"]))
+                        dept_value = row_data.get("DEPT")
+                        if dept_value is not None:
+                            try:
+                                depths.append(float(dept_value))
+                            except (TypeError, ValueError):
+                                pass
 
             result_entry: dict[str, Any] = {
                 "predictions": predictions,

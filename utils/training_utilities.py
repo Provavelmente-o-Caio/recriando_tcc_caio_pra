@@ -33,12 +33,13 @@ def add_derived_features(df: pl.DataFrame) -> pl.DataFrame:
     # VP normalized
     if "VP" in derived_df.columns:
         vp_mean = derived_df.get_column("VP").mean()
-        if vp_mean is not None:
+        vp_mean_value: float | None = None
+        if isinstance(vp_mean, (int, float, np.floating)):
             vp_mean_value = float(vp_mean)
-            if vp_mean_value > 0:
-                expressions.append(
-                    (pl.col("VP") / pl.lit(vp_mean_value)).alias("VP_NORMALIZED")
-                )
+        if vp_mean_value is not None and vp_mean_value > 0:
+            expressions.append(
+                (pl.col("VP") / pl.lit(vp_mean_value)).alias("VP_NORMALIZED")
+            )
 
     # Rolling statistics (local context)
     for col in ["VP", "RHO", "GR"]:
@@ -63,6 +64,19 @@ def add_derived_features(df: pl.DataFrame) -> pl.DataFrame:
     return derived_df
 
 
+def _set_dataset_training_mode(dataset, training: bool) -> None:
+    """Best-effort helper to toggle augmentation on custom datasets.
+
+    Works with torch.utils.data.Subset wrapping a WellLogDataset-like object.
+    """
+
+    base = getattr(dataset, "dataset", dataset)
+    if training and hasattr(base, "train"):
+        base.train()
+    elif (not training) and hasattr(base, "eval"):
+        base.eval()
+
+
 class WarmupScheduler:
     """Learning rate warmup for stable training"""
 
@@ -84,7 +98,7 @@ class WarmupScheduler:
         elif self.base_scheduler:
             # After warmup, use the base scheduler if provided
             if isinstance(self.base_scheduler, ReduceLROnPlateau):
-                self.base_scheduler.step(metrics)
+                self.base_scheduler.step(0.0 if metrics is None else float(metrics))
             else:
                 self.base_scheduler.step()
 
@@ -111,10 +125,10 @@ def calculate_metrics(predictions, targets):
         r2 = np.nan
 
     metrics = {
-        "R2": float(r2),
-        "RMSE": float(rmse),
-        "MSE": float(mse),
-        "MAE": float(mae),
+        "R2": r2,
+        "RMSE": rmse,
+        "MSE": mse,
+        "MAE": mae,
     }
     metrics["r2"] = metrics["R2"]
     metrics["rmse"] = metrics["RMSE"]
@@ -158,9 +172,9 @@ def train_model_with_validation_split(
         device = torch.device("cpu")
     model.to(device)
 
-    # Mixed precision training
+    # Mixed precision training (CUDA only)
     use_amp = torch.cuda.is_available()
-    scaler = torch.cuda.amp.GradScaler() if use_amp else None
+    scaler = torch.amp.GradScaler("cuda") if use_amp else None
 
     # Split training data for validation
     train_data = list(train_loader.dataset)
@@ -186,7 +200,7 @@ def train_model_with_validation_split(
 
     for epoch in range(num_epochs):
         model.train()
-        train_loader_split.dataset.dataset.train()
+        _set_dataset_training_mode(train_loader_split.dataset, training=True)
         total_loss = 0
         epoch_train_predictions = []
         epoch_train_targets = []
@@ -196,15 +210,19 @@ def train_model_with_validation_split(
 
             # Mixed precision foward pass
             if use_amp:
-                with torch.cuda.amp.autocast():
+                # `scaler` is guaranteed to be set when `use_amp` is True.
+                assert scaler is not None
+                with torch.amp.autocast("cuda"):
                     outputs = model(features)
                     loss = criterion(outputs, targets)
+                assert isinstance(loss, torch.Tensor)
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
             else:
                 outputs = model(features)
                 loss = criterion(outputs, targets)
+                assert isinstance(loss, torch.Tensor)
                 loss.backward()
                 clip_grad_norm_(model.parameters(), max_norm=1.0)
                 optimizer.step()
@@ -213,25 +231,27 @@ def train_model_with_validation_split(
             epoch_train_targets.extend(targets.detach().cpu().numpy().flatten())
 
             total_loss += loss.item() * features.size(0)
-        avg_train_loss = total_loss / len(train_loader_split.dataset)
+        avg_train_loss = total_loss / max(1, train_size)
         history["train_loss"].append(avg_train_loss)
         train_metrics = calculate_metrics(epoch_train_predictions, epoch_train_targets)
         history["train_r2"].append(train_metrics["R2"])
 
         # Validation
         model.eval()
-        train_loader_split.dataset.dataset.eval()
+        _set_dataset_training_mode(train_loader_split.dataset, training=False)
         total_val_loss = 0.0
         with torch.no_grad():
             for features, targets in val_loader:
                 features, targets = features.to(device), targets.to(device)
                 if use_amp:
-                    with torch.cuda.amp.autocast():
+                    with torch.amp.autocast("cuda"):
                         outputs = model(features)
                         val_loss = criterion(outputs, targets)
+                        assert isinstance(val_loss, torch.Tensor)
                 else:
                     outputs = model(features)
                     val_loss = criterion(outputs, targets)
+                    assert isinstance(val_loss, torch.Tensor)
                 total_val_loss += val_loss.item()
         avg_val_loss = total_val_loss / len(val_loader)
         history["val_loss"].append(avg_val_loss)
