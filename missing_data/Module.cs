@@ -37,6 +37,8 @@ namespace missing_data
         /// </summary>
         public void Integrate()
         {
+            // Register MissingData
+            PetrelSystem.CommandManager.CreateCommand(missing_data.MissingData.ID, new missing_data.MissingData());
 
             // TODO:  Add Module.Integrate implementation
         }
@@ -48,6 +50,8 @@ namespace missing_data
         /// </summary>
         public void IntegratePresentation()
         {
+            // Add Ribbon Configuration file
+            PetrelSystem.ConfigurationService.AddConfiguration(missing_data.Properties.Resources.OceanRibbonConfiguration);
 
             // TODO:  Add Module.IntegratePresentation implementation
         }
