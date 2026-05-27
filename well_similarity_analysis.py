@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 import seaborn as sns
-from scipy.cluster.hierarchy import dendrogram, linkage
+from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
 from scipy.spatial.distance import pdist, squareform
 from scipy.stats import wasserstein_distance
 from sklearn.manifold import MDS
@@ -762,29 +762,25 @@ class WellGroupingRecommendation:
     def __init__(self, analyzer):
         self.analyzer = analyzer
 
-    def identify_well_clusters(self, distance_type="combined", n_clusters=2):
+    def identify_well_clusters(self, distance_type="combined", cluster_height=2):
         """
         Identify natural clusters of wells.
 
         Uses hierarchical clustering to group wells.
         """
-        from scipy.cluster.hierarchy import fcluster
 
         distance_matrix = self.analyzer.distance_matrices[distance_type]
         condensed_dist = squareform(distance_matrix)
         linkage_matrix = linkage(condensed_dist, method="ward")
 
-        clusters = fcluster(linkage_matrix, n_clusters, criterion="maxclust")
-
-        print(f"\n{'=' * 80}")
-        print(f"Well Clustering Results ({n_clusters} clusters)")
-        print(f"{'=' * 80}")
+        clusters = fcluster(linkage_matrix, cluster_height, criterion="distance")
 
         wells_in_cluster = {}
 
-        for cluster_id in range(1, n_clusters + 1):
-            wells_in_cluster[str(cluster_id)] = np.where(clusters == cluster_id)[0]
-            print(f"\nCluster {cluster_id}: Wells {list(wells_in_cluster)}")
+        for cluster_id in np.unique(clusters):
+            wells = np.where(clusters == cluster_id)[0]
+            wells_in_cluster[str(cluster_id)] = wells
+            print(f"\nCluster {cluster_id}: Wells {list(wells)}")
 
         return wells_in_cluster
 
@@ -913,7 +909,7 @@ class WellGroupingRecommendation:
         print("WELL SIMILARITY ANALYSIS - SUMMARY REPORT")
         print(f"{'=' * 80}")
 
-        clusters = self.identify_well_clusters(n_clusters=3)
+        clusters = self.identify_well_clusters(cluster_height=3)
         self.find_most_similar_pairs(top_k=3)
         self.find_most_dissimilar_pairs(top_k=3)
         outliers, _ = self.identify_outlier_wells()
