@@ -38,14 +38,161 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Microsoft.CSharp" />
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>packages\Newtonsoft.Json.13.0.4\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <Private>True</Private>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="Python.Runtime, Version=3.0.5.0, Culture=neutral, PublicKeyToken=5000fea6cba702dd, processorArchitecture=MSIL">
       <HintPath>packages\pythonnet.3.0.5\lib\netstandard2.0\Python.Runtime.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Slb.Ocean.Catalogs, Version=1.0.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Catalogs.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Coordinates, Version=1.0.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Coordinates.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Core.ReferenceImpl, Version=1.0.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Core.ReferenceImpl.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Data, Version=1.0.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Data.dll</HintPath>
+    </Reference>
     <Reference Include="Slb.Ocean.Petrel.Configuration, Version=21.3.0.0, Culture=neutral, PublicKeyToken=d42cec326f61051f, processorArchitecture=MSIL" />
+    <Reference Include="Slb.Ocean.Petrel.Data.Persistence, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.Data.Persistence.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.DomainObject.FrameworkModeling, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.DomainObject.FrameworkModeling.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.DomainObjectExtensions, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.DomainObjectExtensions.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.DomainObjectExtensions.Prestack, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.DomainObjectExtensions.Prestack.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.Drilling, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.Drilling.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.Geology, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.Geology.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.Intersect, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.Intersect.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.Microseismic, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.Microseismic.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.Modeling, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.Modeling.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.Polygon, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=AMD64">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.Polygon.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.Production, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.Production.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.ReservoirEngineering, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.ReservoirEngineering.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.Resources, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.Resources.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.Seismic, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.Seismic.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.Simulation.EclipseKeywords, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.Simulation.EclipseKeywords.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.StructuralGeology, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.StructuralGeology.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.Testing, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.Testing.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.UI.Controls, Version=21.3.0.0, Culture=neutral, PublicKeyToken=da9605198f529641, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.UI.Controls.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.UI.Visualization3D, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.UI.Visualization3D.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.UI.WellSection, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.UI.WellSection.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.UI.Wpf.Controls, Version=21.3.0.0, Culture=neutral, PublicKeyToken=da9605198f529641, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.UI.Wpf.Controls.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.Well, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.Well.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Petrel.Well.Treatment, Version=21.3.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Petrel.Well.Treatment.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Studio.Find, Version=21.1.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Studio.Find.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Studio.Find.Index, Version=21.1.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Studio.Find.Index.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Studio.Find.Petrel, Version=21.1.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Studio.Find.Petrel.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Studio.Knowledge.Petrel, Version=21.1.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Studio.Knowledge.Petrel.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Trajectory, Version=1.0.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Trajectory.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Units, Version=1.0.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Units.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Units.ReferenceCatalog, Version=1.0.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Units.ReferenceCatalog.dll</HintPath>
+    </Reference>
+    <Reference Include="Slb.Ocean.Units.ReferenceImpl, Version=1.0.0.0, Culture=neutral, PublicKeyToken=14ef4a483ef6a64b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Program Files\Schlumberger\Petrel 2023\Public\Slb.Ocean.Units.ReferenceImpl.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Data" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Deployment" />
     <Reference Include="Slb.Ocean.Core">
@@ -70,7 +217,17 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="MainForm.cs" />
+    <Compile Include="MainForm.Designer.cs">
+      <DependentUpon>MainForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="MissingData.cs" />
+    <Compile Include="missingDataPredictionWizard.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="missingDataPredictionWizard.Designer.cs">
+      <DependentUpon>missingDataPredictionWizard.cs</DependentUpon>
+    </Compile>
     <Compile Include="Module.cs" />
     <Compile Include="Plugin.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -79,6 +236,7 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
+    <Compile Include="PythonRuntimeService.cs" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include="Microsoft.Net.Framework.2.0">

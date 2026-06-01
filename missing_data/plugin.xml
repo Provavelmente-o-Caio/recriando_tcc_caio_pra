@@ -7,7 +7,7 @@
     <PluginUri>https://www.pluginuri.info/</PluginUri>
     <PluginId>://missing_data.Plugin/1.0.0.0</PluginId>
     <Trust PublicKeyToken="">Default</Trust>
-    <ReleaseDate>2026-05-18</ReleaseDate>
+    <ReleaseDate>2026-06-08</ReleaseDate>
     <Author>Caio Ferreira Cardoso</Author>
     <AppVersion>2023.1</AppVersion>
     <Modules>
@@ -15,6 +15,8 @@
     </Modules>
     <Assemblies>
       <Assembly Name="missing_data, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" />
+      <Assembly Name="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed" />
+      <Assembly Name="Python.Runtime, Version=3.0.5.0, Culture=neutral, PublicKeyToken=5000fea6cba702dd" />
     </Assemblies>
     <assemblyBinding />
     <StartMode>Startup</StartMode>
