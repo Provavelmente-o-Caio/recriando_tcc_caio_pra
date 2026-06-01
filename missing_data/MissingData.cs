@@ -23,6 +23,8 @@ namespace missing_data
         {          
             //TODO: Add command execution logic here
             PetrelLogger.InfoOutputWindow(string.Format("{0} clicked", @"Open Log Predictor" ));
+            var instanceMainForm = new MainForm();
+            instanceMainForm.Show();
         }
     
         #endregion

@@ -2,5 +2,8 @@
   <Files>
     <File Name="missing_data.dll" />
     <File Name="missing_data.pdb" />
+    <File Name="missing_data.Plugin_Manifest.xml" />
+    <File Name="Python.Runtime.dll" />
+    <File Name="Python.Runtime.xml" />
   </Files>
 </Deployment>
