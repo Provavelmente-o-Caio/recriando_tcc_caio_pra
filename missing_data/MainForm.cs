@@ -32,7 +32,7 @@ namespace missing_data
     {
         public int ExitCode { get; set; }
 
-        public string Stdout { get; set;}
+        public string Stdout { get; set; }
 
         public string Stderr { get; set; }
     }
@@ -729,7 +729,7 @@ namespace missing_data
                 {
                     ExitCode = process.ExitCode,
                     Stdout = stdout,
-                    Stderr = stderr 
+                    Stderr = stderr
                 };
             }
         }
@@ -936,7 +936,7 @@ namespace missing_data
             };
         }
 
-        
+
         private List<Object> ExtractWellLogSamples(Borehole borehole)
         {
             var logs = new List<Object>();
