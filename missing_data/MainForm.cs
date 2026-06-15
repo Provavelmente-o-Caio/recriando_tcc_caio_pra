@@ -13,6 +13,21 @@ using System.Diagnostics;
 
 namespace missing_data
 {
+    public class WellListItem
+    {
+        public Borehole Borehole { get; private set; }
+
+        public WellListItem(Borehole borehole)
+        {
+            Borehole = borehole;
+        }
+
+        public override string ToString()
+        {
+            return Borehole.Name;
+        }
+    }
+
     public class PythonProcessResult
     {
         public int ExitCode { get; set; }
@@ -468,26 +483,21 @@ namespace missing_data
             return combo;
         }
 
-
         private void LoadWellsIntoCheckBox(CheckedListBox clBox)
         {
             clBox.Items.Clear();
 
-            var boreholeCollections = wellroot.BoreholeCollection?.BoreholeCollections ?? throw new InvalidOperationException("No borehole collections found.");
+            var boreholeCollections =
+                wellroot.BoreholeCollection?.BoreholeCollections
+                ?? throw new InvalidOperationException("No borehole collections found.");
 
-            if (!boreholeCollections.Any()) {
-                throw new InvalidOperationException("No boreholes availible in the project");
+            foreach (var collection in boreholeCollections)
+            {
+                foreach (var borehole in collection)
+                {
+                    clBox.Items.Add(new WellListItem(borehole), false);
+                }
             }
-
-            var nameOccurrences = new Dictionary<string, int>();
-            var wellNames = boreholeCollections
-                .SelectMany(c => c)
-                .Select(w => w.Name)
-                .Distinct()
-                .OrderBy(n => n)
-                .ToArray();
-
-            clBox.Items.AddRange(wellNames);
         }
 
         private string[] LoadLogHeaders()
@@ -522,7 +532,7 @@ namespace missing_data
                 runButton.Enabled = false;
                 AppendStatus("Starting cluster analysis...");
 
-                var selectedWells = getSelectedWells(clb);
+                var selectedWells = GetSelectedWells(clb);
 
                 if (selectedWells.Count() == 0)
                 {
@@ -877,26 +887,21 @@ namespace missing_data
             return input;
         }
 
-        private List<string> getSelectedWells(CheckedListBox clb)
+        private List<Borehole> GetSelectedWells(CheckedListBox clb)
         {
-            var checkedBoxes = new List<string> ();
+            var selected = new List<Borehole>();
 
-            for (int i = 0; i < clb.Items.Count; i++)
+            foreach (object item in clb.CheckedItems)
             {
-                object listItem = clb.Items[i];
+                var wellItem = item as WellListItem;
 
-                if (listItem == null)
+                if (wellItem != null)
                 {
-                    continue;
-                }
-
-                if (clb.GetItemChecked(i))
-                {
-                    checkedBoxes.Add(clb.GetItemText(listItem));
+                    selected.Add(wellItem.Borehole);
                 }
             }
 
-            return checkedBoxes;
+            return selected;
         }
 
         private string[] LoadLasFiles()
@@ -912,34 +917,44 @@ namespace missing_data
                 .ToArray();
         }
 
-
-        private object BuildClusterAnalysisPayload(List<string> selectedWells)
+        private object BuildClusterAnalysisPayload(List<Borehole> selectedWells)
         {
-            var lasFiles = LoadLasFiles();
-
-            if (selectedWells.Count > lasFiles.Length)
-            {
-                throw new InvalidOperationException(
-                    "There are more selected wells than available LAS files."
-                );
-            }
-
             var wells = new List<object>();
 
-            for (int i = 0; i < selectedWells.Count; i++)
+            foreach (var borehole in selectedWells)
             {
                 wells.Add(new
                 {
-                    name = selectedWells[i],
-                    las_path = lasFiles[i]
+                    name = borehole.Name,
+                    logs = ExtractWellLogSamples(borehole)
                 });
             }
 
             return new
             {
-                wells = wells,
+                wells
             };
         }
+
+        
+        private List<Object> ExtractWellLogSamples(Borehole borehole)
+        {
+            var logs = new List<Object>();
+
+            foreach (var log in borehole.Logs.WellLogs)
+            {
+                var samples = log.Samples.Select(s => s.MD).ToList();
+
+                logs.Add(new
+                {
+                    name = log.Name,
+                    samples
+                });
+            }
+
+            return logs;
+        }
+
 
         private NumericUpDown AddDecimalRow(
             TableLayoutPanel layout,
