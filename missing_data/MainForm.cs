@@ -217,13 +217,13 @@ namespace missing_data
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
-            var vpComboBox = AddCurveRow(layout, "VP:", 0);
-            var rhoComboBox = AddCurveRow(layout, "RHO:", 1);
-            var grComboBox = AddCurveRow(layout, "GR:", 2);
-            var porosityComboBox = AddCurveRow(layout, "Porosity:", 3);
-            var saturationComboBox = AddCurveRow(layout, "Saturation:", 4);
-            var clayComboBox = AddCurveRow(layout, "Clay:", 5);
-            var caliperComboBox = AddCurveRow(layout, "Caliper:", 6);
+            ComboBox vpComboBox = AddCurveRow(layout, "VP:", 0);
+            ComboBox rhoComboBox = AddCurveRow(layout, "RHO:", 1);
+            ComboBox grComboBox = AddCurveRow(layout, "GR:", 2);
+            ComboBox porosityComboBox = AddCurveRow(layout, "Porosity:", 3);
+            ComboBox saturationComboBox = AddCurveRow(layout, "Saturation:", 4);
+            ComboBox clayComboBox = AddCurveRow(layout, "Clay:", 5);
+            ComboBox caliperComboBox = AddCurveRow(layout, "Caliper:", 6);
 
             var outputCurveNameTextBox = new TextBox
             {
@@ -373,11 +373,10 @@ namespace missing_data
 
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-
-            var sequenceLengthInput = AddIntegerRow(layout, "Sequence length:", 0, 15, 1, 500);
-            var maskValueInput = AddDecimalRow(layout, "Mask value:", 1, -1.0m, -9999m, 9999m);
-            var numEpochsInput = AddIntegerRow(layout, "Num epochs:", 2, 500, 1, 10000);
-            var patienceInput = AddIntegerRow(layout, "Patience:", 3, 150, 1, 5000);
+            _ = AddIntegerRow(layout, "Sequence length:", 0, 15, 1, 500);
+            _ = AddDecimalRow(layout, "Mask value:", 1, -1.0m, -9999m, 9999m);
+            _ = AddIntegerRow(layout, "Num epochs:", 2, 500, 1, 10000);
+            _ = AddIntegerRow(layout, "Patience:", 3, 150, 1, 5000);
 
             var targetFeatureTextBox = new TextBox
             {
@@ -424,13 +423,13 @@ namespace missing_data
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
-            var vpComboBox = AddCurveRow(layout, "VP:", 0);
-            var rhoComboBox = AddCurveRow(layout, "RHO:", 1);
-            var grComboBox = AddCurveRow(layout, "GR:", 2);
-            var porosityComboBox = AddCurveRow(layout, "Porosity:", 3);
-            var saturationComboBox = AddCurveRow(layout, "Saturation:", 4);
-            var clayComboBox = AddCurveRow(layout, "Clay:", 5);
-            var caliperComboBox = AddCurveRow(layout, "Caliper:", 6);
+            _ = AddCurveRow(layout, "VP:", 0);
+            _ = AddCurveRow(layout, "RHO:", 1);
+            _ = AddCurveRow(layout, "GR:", 2);
+            _ = AddCurveRow(layout, "Porosity:", 3);
+            _ = AddCurveRow(layout, "Saturation:", 4);
+            _ = AddCurveRow(layout, "Clay:", 5);
+            _ = AddCurveRow(layout, "Caliper:", 6);
 
             var outputCurveNameTextBox = new TextBox
             {
@@ -902,19 +901,6 @@ namespace missing_data
             }
 
             return selected;
-        }
-
-        private string[] LoadLasFiles()
-        {
-            string lasDirectory = @"D:\Caio\recriando_tcc_caio_pra\data\petrobras\las_files";
-            if (!Directory.Exists(lasDirectory))
-            {
-                throw new DirectoryNotFoundException("LAS directory not found: " + lasDirectory);
-            }
-
-            return Directory.GetFiles(lasDirectory, "*.las")
-                .OrderBy(path => path)
-                .ToArray();
         }
 
         private object BuildClusterAnalysisPayload(List<Borehole> selectedWells)
