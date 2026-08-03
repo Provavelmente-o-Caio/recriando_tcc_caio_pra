@@ -7,7 +7,7 @@
     <PluginUri>https://www.pluginuri.info/</PluginUri>
     <PluginId>://missing_data.Plugin/1.0.0.0</PluginId>
     <Trust PublicKeyToken="">Default</Trust>
-    <ReleaseDate>2026-06-15</ReleaseDate>
+    <ReleaseDate>2026-08-03</ReleaseDate>
     <Author>Caio Ferreira Cardoso</Author>
     <AppVersion>2023.1</AppVersion>
     <Modules>
