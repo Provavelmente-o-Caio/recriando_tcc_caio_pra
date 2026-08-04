@@ -1,4 +1,5 @@
-﻿using Slb.Ocean.Petrel;
+﻿using Newtonsoft.Json;
+using Slb.Ocean.Petrel;
 using Slb.Ocean.Petrel.DomainObject;
 using Slb.Ocean.Petrel.DomainObject.Well;
 using System;
@@ -6,10 +7,8 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Windows.Forms;
-using Newtonsoft.Json;
 using System.Threading.Tasks;
-using System.Diagnostics;
+using System.Windows.Forms;
 
 namespace missing_data
 {
@@ -51,8 +50,11 @@ namespace missing_data
 
     public partial class MainForm : Form
     {
-        // Prediction Data
-        private CheckedListBox wellsListBox;
+        // List boxes
+        private CheckedListBox wellsListBoxPrediction;
+        private CheckedListBox wellsListBoxTraining;
+
+
         private TextBox statusTextBox;
         private Button runButton;
         private ComboBox vsComboBox;
@@ -170,9 +172,19 @@ namespace missing_data
             return trainingSplit;
         }
 
-        private Control BuildConfigurationPanel()
+        private TableLayoutPanel BuildConfigurationPanel()
         {
-            var configurationPanel = new GroupBox
+            var configurationPanel = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                AutoSize = true,
+            };
+
+            configurationPanel.ColumnStyles.Add(
+                new ColumnStyle(SizeType.Percent, 100));
+
+            var pythonConfigGroup = new GroupBox
             {
                 Text = "Python base_config",
                 Dock = DockStyle.Top,
@@ -182,14 +194,14 @@ namespace missing_data
 
             var layout = new TableLayoutPanel
             {
-                Dock = DockStyle.Top,
+                Dock = DockStyle.Fill,
                 AutoSize = true,
-                ColumnCount = 2,
-                RowCount = 5
+                ColumnCount = 2
             };
 
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
             sequenceLengthNumBox = AddIntegerRow(layout, "Sequence length:", 0, 15, 1, 500);
             maskValueNumBox = AddDecimalRow(layout, "Mask value:", 1, -1.0m, -9999m, 9999m);
             numEpochsNumBox = AddIntegerRow(layout, "Num epochs:", 2, 500, 1, 10000);
@@ -201,23 +213,70 @@ namespace missing_data
                 Text = "VS"
             };
 
-            layout.Controls.Add(
-                new Label
-                {
-                    Text = "Target feature:",
-                    TextAlign = ContentAlignment.MiddleLeft,
-                    Dock = DockStyle.Fill
-                },
-                0,
-                4
-            );
+            layout.Controls.Add(new Label
+            {
+                Text = "Target feature:",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft
+            }, 0, 4);
 
             layout.Controls.Add(targetFeatureTextBox, 1, 4);
 
-            configurationPanel.Controls.Add(layout);
+            pythonConfigGroup.Controls.Add(layout);
+
+            var curveLayout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                AutoSize = true,
+                ColumnCount = 2
+            };
+
+            curveLayout.ColumnStyles.Add(
+                new ColumnStyle(SizeType.Absolute, 140));
+
+            curveLayout.ColumnStyles.Add(
+                new ColumnStyle(SizeType.Percent, 100));
+
+            var curveMappingGroup = new GroupBox
+            {
+                Text = "Curve mapping",
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                Padding = new Padding(12)
+            };
+
+            vpComboBox = AddCurveRow(curveLayout, "VP:", 0);
+            vsComboBox = AddCurveRow(curveLayout, "VS:", 1);
+            rhoComboBox = AddCurveRow(curveLayout, "RHO:", 2);
+            grComboBox = AddCurveRow(curveLayout, "GR:", 3);
+            porosityComboBox = AddCurveRow(curveLayout, "Porosity:", 4);
+            saturationComboBox = AddCurveRow(curveLayout, "Saturation:", 5);
+            clayComboBox = AddCurveRow(curveLayout, "Clay:", 6);
+            caliperComboBox = AddCurveRow(curveLayout, "Caliper:", 7);
+
+            outputCurveNameTextBox = new TextBox
+            {
+                Dock = DockStyle.Fill,
+                Text = "VS_PREDICTED_ML"
+            };
+
+            curveLayout.Controls.Add(
+                new Label
+                {
+                    Text = "Output curve:",
+                    TextAlign = ContentAlignment.MiddleLeft
+                },
+                0,
+                8);
+
+            curveLayout.Controls.Add(outputCurveNameTextBox, 1, 8);
+
+            curveMappingGroup.Controls.Add(curveLayout);
+
+            configurationPanel.Controls.Add(curveMappingGroup);
+            configurationPanel.Controls.Add(pythonConfigGroup);
 
             return configurationPanel;
-
         }
 
         private Control BuildWellSelectionPanel()
@@ -246,15 +305,15 @@ namespace missing_data
                 Text = "Drop wells here"
             };
 
-            wellsListBox = new CheckedListBox
+            wellsListBoxPrediction = new CheckedListBox
             {
                 Dock = DockStyle.Fill,
                 CheckOnClick = true
             };
 
-            LoadWellsIntoCheckBox(wellsListBox);
+            LoadWellsIntoCheckBox(wellsListBoxPrediction);
 
-            wellDropTarget.DragDrop += (sender, e) => WellDropTarget_DragDrop(sender, e, wellsListBox);
+            wellDropTarget.DragDrop += (sender, e) => WellDropTarget_DragDrop(sender, e, wellsListBoxPrediction);
             wellDropTarget.DragEnter += WellDropTarget_DragEnter;
 
             var buttons = new FlowLayoutPanel
@@ -267,14 +326,14 @@ namespace missing_data
             var selectAllButton = new Button { Text = "Select all", Width = 100 };
             var clearButton = new Button { Text = "Clear", Width = 100 };
 
-            selectAllButton.Click += (sender, e) => SelectAllButton_Click(wellsListBox);
-            clearButton.Click += (sender, e) => ClearButton_Click(wellsListBox);
+            selectAllButton.Click += (sender, e) => SelectAllButton_Click(wellsListBoxPrediction);
+            clearButton.Click += (sender, e) => ClearButton_Click(wellsListBoxPrediction);
 
             buttons.Controls.Add(selectAllButton);
             buttons.Controls.Add(clearButton);
 
             layout.Controls.Add(wellDropTarget, 0, 0);
-            layout.Controls.Add(wellsListBox, 0, 1);
+            layout.Controls.Add(wellsListBoxPrediction, 0, 1);
             layout.Controls.Add(buttons, 0, 2);
 
             group.Controls.Add(layout);
@@ -302,24 +361,6 @@ namespace missing_data
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
-            vsComboBox = AddCurveRow(layout, "VS:", 0);
-            vpComboBox = AddCurveRow(layout, "VP:", 1);
-            rhoComboBox = AddCurveRow(layout, "RHO:", 2);
-            grComboBox = AddCurveRow(layout, "GR:", 3);
-            porosityComboBox = AddCurveRow(layout, "Porosity:", 4);
-            saturationComboBox = AddCurveRow(layout, "Saturation:", 5);
-            clayComboBox = AddCurveRow(layout, "Clay:", 6);
-            caliperComboBox = AddCurveRow(layout, "Caliper:", 7);
-
-            outputCurveNameTextBox = new TextBox
-            {
-                Dock = DockStyle.Fill,
-                Text = "VS_PREDICTED_ML"
-            };
-
-            layout.Controls.Add(new Label { Text = "Output curve:", TextAlign = ContentAlignment.MiddleLeft }, 0, 8);
-            layout.Controls.Add(outputCurveNameTextBox, 1, 8);
-
             runButton = new Button
             {
                 Text = "Run prediction",
@@ -327,7 +368,7 @@ namespace missing_data
                 Dock = DockStyle.Bottom
             };
 
-            runButton.Click += async (sender, e) => await RunButton_ClickAsync(wellsListBox);
+            runButton.Click += async (sender, e) => await RunButton_ClickAsync(wellsListBoxPrediction);
 
             group.Controls.Add(runButton);
             group.Controls.Add(layout);
@@ -361,13 +402,13 @@ namespace missing_data
                 Text = "Drop wells here"
             };
 
-            var wellsListBox = new CheckedListBox
+            wellsListBoxTraining = new CheckedListBox
             {
                 Dock = DockStyle.Fill,
                 CheckOnClick = true
             };
 
-            LoadWellsIntoCheckBox(wellsListBox);
+            LoadWellsIntoCheckBox(wellsListBoxTraining);
 
             var buttons = new FlowLayoutPanel
             {
@@ -379,17 +420,17 @@ namespace missing_data
             var selectAllButton = new Button { Text = "Select all", Width = 100 };
             var clearButton = new Button { Text = "Clear", Width = 100 };
 
-            selectAllButton.Click += (sender, e) => SelectAllButton_Click(wellsListBox);
-            clearButton.Click += (sender, e) => ClearButton_Click(wellsListBox);
+            selectAllButton.Click += (sender, e) => SelectAllButton_Click(wellsListBoxTraining);
+            clearButton.Click += (sender, e) => ClearButton_Click(wellsListBoxTraining);
 
-            wellDropTarget.DragDrop += (sender, e) => WellDropTarget_DragDrop(sender, e, wellsListBox);
+            wellDropTarget.DragDrop += (sender, e) => WellDropTarget_DragDrop(sender, e, wellsListBoxTraining);
             wellDropTarget.DragEnter += WellDropTarget_DragEnter;
 
             buttons.Controls.Add(selectAllButton);
             buttons.Controls.Add(clearButton);
 
             layout.Controls.Add(wellDropTarget, 0, 0);
-            layout.Controls.Add(wellsListBox, 0, 1);
+            layout.Controls.Add(wellsListBoxTraining, 0, 1);
             layout.Controls.Add(buttons, 0, 2);
 
             group.Controls.Add(layout);
@@ -417,8 +458,6 @@ namespace missing_data
             container.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             container.RowStyles.Add(new RowStyle(SizeType.Absolute, 12));
 
-            var curveMappingPanel = BuildCurveMappingPanel();
-
             runButton = new Button
             {
                 Text = "Run Training",
@@ -426,66 +465,11 @@ namespace missing_data
                 Dock = DockStyle.Bottom
             };
 
-            runButton.Click += RunButtonTraining_Click;
+            runButton.Click += async (sender, e) => await RunButtonTraining_Click(wellsListBoxTraining);
 
-            container.Controls.Add(curveMappingPanel, 0, 0);
-            container.Controls.Add(runButton, 0, 1);
+            container.Controls.Add(runButton, 0, 0);
 
             group.Controls.Add(container);
-
-            return group;
-        }
-
-        private Control BuildCurveMappingPanel()
-        {
-            var group = new GroupBox
-            {
-                Text = "Curve mapping",
-                Dock = DockStyle.Top,
-                AutoSize = true,
-                Padding = new Padding(12)
-            };
-
-            var layout = new TableLayoutPanel
-            {
-                Dock = DockStyle.Top,
-                AutoSize = true,
-                ColumnCount = 2,
-                RowCount = 8
-            };
-
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-
-            vsComboBox = AddCurveRow(layout, "VS:", 0);
-            vpComboBox = AddCurveRow(layout, "VP:", 1);
-            rhoComboBox = AddCurveRow(layout, "RHO:", 2);
-            grComboBox = AddCurveRow(layout, "GR:", 3);
-            porosityComboBox = AddCurveRow(layout, "Porosity:", 4);
-            saturationComboBox = AddCurveRow(layout, "Saturation:", 5);
-            clayComboBox = AddCurveRow(layout, "Clay:", 6);
-            caliperComboBox = AddCurveRow(layout, "Caliper:", 7);
-
-            outputCurveNameTextBox = new TextBox
-            {
-                Dock = DockStyle.Fill,
-                Text = "VS_PREDICTED_ML"
-            };
-
-            layout.Controls.Add(
-                new Label
-                {
-                    Text = "Output curve:",
-                    TextAlign = ContentAlignment.MiddleLeft,
-                    Dock = DockStyle.Fill
-                },
-                0,
-                8
-            );
-
-            layout.Controls.Add(outputCurveNameTextBox, 1, 8);
-
-            group.Controls.Add(layout);
 
             return group;
         }
@@ -559,6 +543,233 @@ namespace missing_data
         }
 
 
+        private async Task RunButtonTraining_Click(CheckedListBox clb)
+        {
+            try
+            {
+                var selectedWells = GetSelectedWells(clb);
+
+                if (selectedWells.Count() == 0)
+                {
+                    MessageBox.Show("Select at least one well.", "No wells selected", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                var selectedTrainingConfiguration = getCurveMapping();
+                
+                string workDir = Path.Combine(
+                    Path.GetTempPath(), "vs_predictior_petrel"
+                );
+
+                Directory.CreateDirectory(workDir);
+
+                string inputPath = Path.Combine(workDir, "cluster_analysis_input.json");
+                string outputPath = Path.Combine(workDir, "cluster_analysis_output.json");
+
+                var payload = BuildClusterAnalysisPayload(selectedWells, selectedTrainingConfiguration);
+
+                string json = JsonConvert.SerializeObject(payload, Formatting.Indented);
+
+                File.WriteAllText(inputPath, json);
+
+                string appData =
+                    Environment.GetFolderPath(
+                    Environment.SpecialFolder.ApplicationData
+                );
+
+                string projectDir = Path.Combine(
+                    appData,
+                    "recriando_tcc_caio_pra"
+                );
+
+                string pythonExe = Path.Combine(
+                    projectDir,
+                    ".venv",
+                    "Scripts",
+                    "python.exe"
+                );
+
+                string runnerPath = Path.Combine(
+                    projectDir,
+                    "predictor.py"
+                );
+
+                AppendStatus(
+                    "Python executable: " + pythonExe
+                );
+
+                AppendStatus(
+                    "Runner script: " + runnerPath
+                );
+
+                if (!File.Exists(pythonExe))
+                {
+                    throw new FileNotFoundException(
+                        "Python executable not found.",
+                        pythonExe
+                    );
+                }
+
+                if (!File.Exists(runnerPath))
+                {
+                    throw new FileNotFoundException(
+                        "Predictor script not found.",
+                        runnerPath
+                    );
+                }
+
+                var result = await Utils.RunPythonAnalysisAsync(
+                    pythonExe,
+                    runnerPath,
+                    "analyze",
+                    inputPath,
+                    outputPath
+                );
+
+                if (!string.IsNullOrWhiteSpace(result.Stdout))
+                {
+                    // AppendStatus(result.Stdout);
+                }
+
+                if (!string.IsNullOrWhiteSpace(result.Stderr))
+                {
+                    // AppendStatus(result.Stderr);
+                }
+
+                if (result.ExitCode != 0)
+                {
+                    // AppendStatus(result.Stderr);
+
+                    MessageBox.Show(
+                        result.Stderr,
+                        "Python analysis failed",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                        );
+
+                    return;
+                }
+
+                if (!File.Exists(outputPath))
+                {
+                    MessageBox.Show(
+                        "Python finished but did not generate output JSON.",
+                        "Missing output",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+
+                    return;
+                }
+
+                // AppendStatus("Reading cluster analysis result...");
+
+                string outputJson = File.ReadAllText(outputPath);
+
+                var analysisOutput = JsonConvert.DeserializeObject<ClusterAnalysisOutput>(
+                    outputJson
+                );
+
+                if (analysisOutput == null)
+                {
+                    throw new InvalidOperationException(
+                        "Could not parse cluster analysis output JSON."
+                    );
+                }
+
+                if (analysisOutput.Status != "success")
+                {
+                    throw new InvalidOperationException(
+                        "Cluster analysis did not finish successfully."
+                    );
+                }
+
+                AppendStatus("Clusters found: " + analysisOutput.Clusters.Count);
+
+                var form = new ClusterAnalysisVisualizationForm(analysisOutput);
+
+                if (form.ShowDialog() != DialogResult.OK)
+                    return;
+
+                var clusters = form.EditedClusters;
+
+                var payload_clusters = new
+                {
+                    clusters
+                };
+
+                string workDir_clusters = Path.Combine(
+                    Path.GetTempPath(), "vs_predictior_petrel"
+                );
+
+                Directory.CreateDirectory(workDir_clusters);
+
+                string clustersPath = Path.Combine(workDir_clusters, "clusters.json");
+
+                File.WriteAllText(
+                    clustersPath,
+                    JsonConvert.SerializeObject(payload_clusters, Formatting.Indented)
+                );
+
+                    var result_clusters = await Utils.RunPythonTrainingAsync(
+                        pythonExe,
+                        runnerPath,
+                        inputPath,
+                        outputPath,
+                        clustersPath
+                    );
+
+                if (!string.IsNullOrWhiteSpace(result_clusters.Stdout))
+                {
+                    AppendStatus(result_clusters.Stdout);
+                }
+
+                if (!string.IsNullOrWhiteSpace(result_clusters.Stderr))
+                {
+                    AppendStatus(result_clusters.Stderr);
+                }
+
+                if (result_clusters.ExitCode != 0)
+                {
+                     AppendStatus(result_clusters.Stderr);
+
+                    MessageBox.Show(
+                        result_clusters.Stderr,
+                        "Python analysis failed",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+                }
+
+                if (!File.Exists(outputPath))
+                {
+                    MessageBox.Show(
+                        "Python finished but did not generate an output.",
+                        "Missing output",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+
+                    return;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                // AppendStatus("ERROR: " + ex.Message);
+
+                MessageBox.Show(
+                    ex.ToString(),
+                    "Unexpected error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+            }
+            finally
+            {
+                runButton.Enabled = true;
+            }
+        }
+
         private async Task RunButton_ClickAsync(CheckedListBox clb)
         {
             try
@@ -580,7 +791,7 @@ namespace missing_data
                     return;
                 }
 
-                var selectedPredictionConfiguration = GetSelectedPredictionConfiguration();
+                var selectedPredictionConfiguration = getCurveMapping();
 
                 AppendStatus("Selected wells: " + selectedWells.Count().ToString());
 
@@ -717,15 +928,71 @@ namespace missing_data
 
                 AppendStatus("Clusters found: " + analysisOutput.Clusters.Count);
 
-                using (var form = new ClusterAnalysisVisualizationForm(
-                    analysisOutput,
-                    inputPath,
-                    outputPath,
-                    pythonExe,
-                    runnerPath
-                ))
+                var form = new ClusterAnalysisVisualizationForm(analysisOutput);
+
+                if (form.ShowDialog() != DialogResult.OK)
+                    return;
+
+                var clusters = form.EditedClusters;
+
+                var payload_clusters = new
                 {
-                    form.ShowDialog(this);
+                    clusters
+                };
+
+                string workDir_clusters = Path.Combine(
+                    Path.GetTempPath(), "vs_predictior_petrel"
+                );
+
+                Directory.CreateDirectory(workDir_clusters);
+
+                string clustersPath = Path.Combine(workDir_clusters, "clusters.json");
+
+                File.WriteAllText(
+                    clustersPath,
+                    JsonConvert.SerializeObject(payload_clusters, Formatting.Indented)
+                );
+
+                    var result_clusters = await Utils.RunPythonPredictionAsync(
+                        pythonExe,
+                        runnerPath,
+                        inputPath,
+                        outputPath,
+                        clustersPath
+                    );
+
+                if (!string.IsNullOrWhiteSpace(result_clusters.Stdout))
+                {
+                    // AppendStatus(result.Stdout);
+                }
+
+                if (!string.IsNullOrWhiteSpace(result_clusters.Stderr))
+                {
+                    // AppendStatus(result.Stderr);
+                }
+
+                if (result_clusters.ExitCode != 0)
+                {
+                    // AppendStatus(result.Stderr);
+
+                    MessageBox.Show(
+                        result_clusters.Stderr,
+                        "Python analysis failed",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+                }
+
+                if (!File.Exists(outputPath))
+                {
+                    MessageBox.Show(
+                        "Python finished but did not generate an output.",
+                        "Missing output",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+
+                    return;
                 }
             }
             catch (Exception ex)
@@ -756,10 +1023,6 @@ namespace missing_data
                 statusTextBox.AppendText(
                     Environment.NewLine + "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + message);
             }
-        }
-
-        private void RunButtonTraining_Click(object sender, EventArgs e)
-        {
         }
 
         private void SelectAllButton_Click(CheckedListBox clb)
@@ -967,7 +1230,7 @@ namespace missing_data
         }
 
 
-        private Dictionary<String, String> GetSelectedPredictionConfiguration()
+        private Dictionary<String, String> getCurveMapping()
         {
             var selected = new Dictionary<string, string>
             {

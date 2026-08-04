@@ -71,7 +71,7 @@ namespace missing_data
                 };
             }
         }
-        public static async Task<PythonProcessResult> RunPythontrainingAsync(string pythonExe, string runnerPath, string inputPath, string outputPath, string clustersPath)
+        public static async Task<PythonProcessResult> RunPythonTrainingAsync(string pythonExe, string runnerPath, string inputPath, string outputPath, string clustersPath)
         {
             if (!File.Exists(pythonExe))
             {
@@ -90,7 +90,7 @@ namespace missing_data
             }
 
             var arguments =
-                $"\"{runnerPath}\" train" +
+                $"\"{runnerPath}\" train " +
                 $"--input \"{inputPath}\" " +
                 $"--output \"{outputPath}\" " +
                 $"--cluster \"{clustersPath}\"";

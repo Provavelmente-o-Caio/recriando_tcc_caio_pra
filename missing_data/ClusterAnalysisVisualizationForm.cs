@@ -12,25 +12,23 @@ namespace missing_data
     public partial class ClusterAnalysisVisualizationForm : Form
     {
         private ClusterAnalysisOutput analysisOutput;
-        private string outputPath;
-        private string inputPath;
-        private string pythonExe;
-        private string runnerPath;
         private TextBox clusterBox;
 
         // herdando configuração da outra pasta
 
-        public ClusterAnalysisVisualizationForm(ClusterAnalysisOutput analysisOutput, string inputPath, string outputPath, string pythonExe, string runnerPath)
+        public ClusterAnalysisVisualizationForm(ClusterAnalysisOutput analysisOutput)
         {
             InitializeComponent();
 
             this.analysisOutput = analysisOutput;
-            this.outputPath = Path.Combine(outputPath, "results");
-            this.inputPath = inputPath;
-            this.pythonExe = pythonExe;
-            this.runnerPath = runnerPath;
 
             BuildLayout();
+        }
+
+        public Dictionary<string, List<int>> EditedClusters
+        {
+            get;
+            private set;
         }
 
         private void BuildLayout()
@@ -110,7 +108,7 @@ namespace missing_data
             foreach (var item in analysisOutput.Visualizations)
             {
                 string visualizationName = item.Key;
-                string visualizationPath = ResolveVisualizationPath(item.Value);
+                string visualizationPath = item.Value;
 
                 var tab = new TabPage(visualizationName);
 
@@ -143,16 +141,6 @@ namespace missing_data
             }
 
             return tabs;
-        }
-
-        private string ResolveVisualizationPath(string path)
-        {
-            if (Path.IsPathRooted(path))
-            {
-                return path;
-            }
-
-            return Path.Combine(outputPath, path);
         }
 
         private Image LoadImageWithoutLocking(string path)
@@ -190,7 +178,7 @@ namespace missing_data
                 DialogResult = DialogResult.OK
             };
 
-            runButton.Click += (sender, e) => RunPrediction(sender, e, runButton);
+            runButton.Click += RunButton_Click;
 
             panel.Controls.Add(closeButton);
             panel.Controls.Add(runButton);
@@ -237,100 +225,23 @@ namespace missing_data
             return clusters;
         }
 
-        private async void RunPrediction(object sender, EventArgs e, Button btn)
+        private void RunButton_Click(object sender, EventArgs e)
         {
-            try
-            {
-                btn.Enabled = false;
+            EditedClusters = ParseClusters(clusterBox.Text);
 
-                var clusters = ParseClusters(this.clusterBox.Text);
-
-                if (clusters.Count() < 1)
-                {
-                    MessageBox.Show(
-                        "You must form at least one cluster",
-                        "No cluster formed",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning
-                   );
-                    return;
-                }
-
-                var payload = new
-                {
-                    clusters = clusters
-                };
-
-                string workDir = Path.Combine(
-                    Path.GetTempPath(), "vs_predictior_petrel"
-                );
-
-                Directory.CreateDirectory(workDir);
-
-                string clustersPath = Path.Combine(workDir, "clusters.json");
-
-                File.WriteAllText(
-                    clustersPath,
-                    JsonConvert.SerializeObject(payload, Formatting.Indented)
-                );
-
-                    var result = await Utils.RunPythonPredictionAsync(
-                        pythonExe,
-                        runnerPath,
-                        inputPath,
-                        outputPath,
-                        clustersPath
-                    );
-
-                /*
-                if (!string.IsNullOrWhiteSpace(result.Stdout))
-                {
-                    // AppendStatus(result.Stdout);
-                }
-
-                if (!string.IsNullOrWhiteSpace(result.Stderr))
-                {
-                    // AppendStatus(result.Stderr);
-                }
-                */
-
-                if (result.ExitCode != 0)
-                {
-                    // AppendStatus(result.Stderr);
-
-                    MessageBox.Show(
-                        result.Stderr,
-                        "Python analysis failed",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error
-                    );
-                }
-
-                if (!File.Exists(outputPath))
-                {
-                    MessageBox.Show(
-                        "Python finished but did not generate an output.",
-                        "Missing output",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error
-                    );
-
-                    return;
-                }
-            }
-            catch (Exception ex)
+            if (EditedClusters.Count() < 1)
             {
                 MessageBox.Show(
-                    ex.ToString(),
-                    "Unexpected error",
+                    "You must form at least one cluster",
+                    "No cluster formed",
                     MessageBoxButtons.OK,
-                    MessageBoxIcon.Error
-                );
+                    MessageBoxIcon.Warning
+               );
+                return;
             }
-            finally
-            {
-                btn.Enabled = true;
-            }
+
+            DialogResult = DialogResult.OK;
+            Close();
         }
     }
 }
