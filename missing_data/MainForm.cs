@@ -70,7 +70,7 @@ namespace missing_data
         private NumericUpDown maskValueNumBox;
         private NumericUpDown numEpochsNumBox;
         private NumericUpDown patienceNumBox;
-        private ComboBox targetFeatureComboBox;
+        private TextBox targetFeatureTextBox;
 
 
         // Tabs
@@ -127,7 +127,7 @@ namespace missing_data
 
             TrainingTab.Controls.Add(BuildTrainingSplit());
 
-            // configurationTab.Controls.Add(BuildConfigurationSplit());
+            configurationTab.Controls.Add(BuildConfigurationPanel());
 
             Controls.Add(tabs);
         }
@@ -143,7 +143,7 @@ namespace missing_data
             };
 
             var leftPanel = BuildWellSelectionPanel();
-            var rightPanel = BuildConfigurationPanel();
+            var rightPanel = BuildPredictionConfigurationPanel();
 
             mainSplit.Panel1.Controls.Add(leftPanel);
             mainSplit.Panel2.Controls.Add(rightPanel);
@@ -168,6 +168,56 @@ namespace missing_data
             trainingSplit.Panel2.Controls.Add(rightPanel);
 
             return trainingSplit;
+        }
+
+        private Control BuildConfigurationPanel()
+        {
+            var configurationPanel = new GroupBox
+            {
+                Text = "Python base_config",
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                Padding = new Padding(12)
+            };
+
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                ColumnCount = 2,
+                RowCount = 5
+            };
+
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            sequenceLengthNumBox = AddIntegerRow(layout, "Sequence length:", 0, 15, 1, 500);
+            maskValueNumBox = AddDecimalRow(layout, "Mask value:", 1, -1.0m, -9999m, 9999m);
+            numEpochsNumBox = AddIntegerRow(layout, "Num epochs:", 2, 500, 1, 10000);
+            patienceNumBox = AddIntegerRow(layout, "Patience:", 3, 150, 1, 5000);
+
+            targetFeatureTextBox = new TextBox
+            {
+                Dock = DockStyle.Fill,
+                Text = "VS"
+            };
+
+            layout.Controls.Add(
+                new Label
+                {
+                    Text = "Target feature:",
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    Dock = DockStyle.Fill
+                },
+                0,
+                4
+            );
+
+            layout.Controls.Add(targetFeatureTextBox, 1, 4);
+
+            configurationPanel.Controls.Add(layout);
+
+            return configurationPanel;
+
         }
 
         private Control BuildWellSelectionPanel()
@@ -232,7 +282,7 @@ namespace missing_data
             return group;
         }
 
-        private Control BuildConfigurationPanel()
+        private Control BuildPredictionConfigurationPanel()
         {
             var group = new GroupBox
             {
@@ -243,7 +293,7 @@ namespace missing_data
 
             var layout = new TableLayoutPanel
             {
-                Dock = DockStyle.Top,
+                Dock = DockStyle.Fill,
                 AutoSize = true,
                 ColumnCount = 2,
                 RowCount = 10
@@ -252,7 +302,7 @@ namespace missing_data
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
-            vsComboBox = AddCurveRow(layout, "VS", 0);
+            vsComboBox = AddCurveRow(layout, "VS:", 0);
             vpComboBox = AddCurveRow(layout, "VP:", 1);
             rhoComboBox = AddCurveRow(layout, "RHO:", 2);
             grComboBox = AddCurveRow(layout, "GR:", 3);
@@ -274,7 +324,7 @@ namespace missing_data
             {
                 Text = "Run prediction",
                 Height = 36,
-                Dock = DockStyle.Top
+                Dock = DockStyle.Bottom
             };
 
             runButton.Click += async (sender, e) => await RunButton_ClickAsync(wellsListBox);
@@ -351,7 +401,7 @@ namespace missing_data
         {
             var group = new GroupBox
             {
-                Text = "Prediction configuration",
+                Text = "Training Configuration",
                 Dock = DockStyle.Fill,
                 Padding = new Padding(12)
             };
@@ -373,7 +423,7 @@ namespace missing_data
             {
                 Text = "Run Training",
                 Height = 36,
-                Dock = DockStyle.Fill
+                Dock = DockStyle.Bottom
             };
 
             runButton.Click += RunButtonTraining_Click;
@@ -385,58 +435,6 @@ namespace missing_data
 
             return group;
         }
-
-
-        /*
-        private Control BuildTrainingConfigPanel()
-        {
-            var group = new GroupBox
-            {
-                Text = "Python base_config",
-                Dock = DockStyle.Top,
-                AutoSize = true,
-                Padding = new Padding(12)
-            };
-
-            var layout = new TableLayoutPanel
-            {
-                Dock = DockStyle.Top,
-                AutoSize = true,
-                ColumnCount = 2,
-                RowCount = 5
-            };
-
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            _ = AddIntegerRow(layout, "Sequence length:", 0, 15, 1, 500);
-            _ = AddDecimalRow(layout, "Mask value:", 1, -1.0m, -9999m, 9999m);
-            _ = AddIntegerRow(layout, "Num epochs:", 2, 500, 1, 10000);
-            _ = AddIntegerRow(layout, "Patience:", 3, 150, 1, 5000);
-
-            var targetFeatureTextBox = new TextBox
-            {
-                Dock = DockStyle.Fill,
-                Text = "VS"
-            };
-
-            layout.Controls.Add(
-                new Label
-                {
-                    Text = "Target feature:",
-                    TextAlign = ContentAlignment.MiddleLeft,
-                    Dock = DockStyle.Fill
-                },
-                0,
-                4
-            );
-
-            layout.Controls.Add(targetFeatureTextBox, 1, 4);
-
-            group.Controls.Add(layout);
-
-            return group;
-        }
-        */
 
         private Control BuildCurveMappingPanel()
         {
@@ -468,7 +466,7 @@ namespace missing_data
             clayComboBox = AddCurveRow(layout, "Clay:", 6);
             caliperComboBox = AddCurveRow(layout, "Caliper:", 7);
 
-            var outputCurveNameTextBox = new TextBox
+            outputCurveNameTextBox = new TextBox
             {
                 Dock = DockStyle.Fill,
                 Text = "VS_PREDICTED_ML"
@@ -485,7 +483,7 @@ namespace missing_data
                 8
             );
 
-            layout.Controls.Add(outputCurveNameTextBox, 1, 7);
+            layout.Controls.Add(outputCurveNameTextBox, 1, 8);
 
             group.Controls.Add(layout);
 
@@ -1072,7 +1070,7 @@ namespace missing_data
                 MaskValue = double.Parse(maskValueNumBox.Text),
                 NumEpochs = int.Parse(numEpochsNumBox.Text),
                 Patience = int.Parse(patienceNumBox.Text),
-                TargetFeature = targetFeatureComboBox.Text
+                TargetFeature = targetFeatureTextBox.Text
             };
         }
     }
