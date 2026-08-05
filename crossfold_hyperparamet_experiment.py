@@ -51,11 +51,11 @@ class ClusterBestConfig(TypedDict):
 
 
 class CrossFoldHyperparameterExperiment:
-    def __init__(self, base_config):
+    def __init__(self, base_config, results_dir):
         self.base_config = base_config
         self.result = {}
         self.experiment_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.results_dir = f"experiments/experiment_{self.experiment_id}"
+        self.results_dir = results_dir
         os.makedirs(self.results_dir, exist_ok=True)
 
     def define_hyperparameter_configurations(self):
@@ -555,7 +555,7 @@ class CrossFoldHyperparameterExperiment:
                 print(f"\n{'-' * 80}")
                 print(f"CLUSTER {cluster_name}: Wells {cluster_index}")
                 print(f"{'-' * 80}")
-                cluster_wells = [wells_with_target[i] for i in cluster_index]
+                # cluster_wells = [wells_with_target[i] for i in cluster_index]
 
                 for fold_idx, test_well_idx in enumerate(cluster_index):
                     train_idxs = [i for i in cluster_index if i != test_well_idx]

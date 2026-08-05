@@ -18,13 +18,14 @@ Usage:
     python well_similarity_analysis.py
 """
 
+import os
 import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 import seaborn as sns
-from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
+from scipy.cluster.hierarchy import dendrogram, fcluster, linkage
 from scipy.spatial.distance import pdist, squareform
 from scipy.stats import wasserstein_distance
 from sklearn.manifold import MDS
@@ -397,7 +398,10 @@ class WellSimilarityVisualizer:
         self.analyzer = analyzer
         self.output_dir = output_dir
 
-        import os
+        if ".json" in self.output_dir:
+            self.output_dir = self.output_dir.replace(".json", "")
+
+        self.output_dir = os.path.abspath(self.output_dir)
 
         os.makedirs(output_dir, exist_ok=True)
 
@@ -504,6 +508,9 @@ class WellSimilarityVisualizer:
 
         plt.tight_layout()
 
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+
         filename = f"{self.output_dir}/mds_{distance_type}.png"
         plt.savefig(filename, dpi=300, bbox_inches="tight")
         print(f"Saved to: {filename}")
@@ -592,6 +599,9 @@ class WellSimilarityVisualizer:
 
         plt.tight_layout()
 
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+
         filename = f"{self.output_dir}/dendrogram_{distance_type}.png"
         plt.savefig(filename, dpi=300, bbox_inches="tight")
         print(f"Saved to: {filename}")
@@ -654,6 +664,9 @@ class WellSimilarityVisualizer:
         )
 
         plt.tight_layout()
+
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
 
         filename = f"{self.output_dir}/heatmap_{distance_type}.png"
         plt.savefig(filename, dpi=300, bbox_inches="tight")
@@ -729,6 +742,9 @@ class WellSimilarityVisualizer:
         )
         plt.tight_layout()
 
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+
         filename = f"{self.output_dir}/mds_comparison.png"
         plt.savefig(filename, dpi=300, bbox_inches="tight")
         print(f"Saved to: {filename}")
@@ -803,7 +819,7 @@ class WellGroupingRecommendation:
             well_j = upper_tri_indices[1][idx]
             dist = distances[idx]
 
-            print(f"{i + 1}. Well {well_i} ↔ Well {well_j}: Distance = {dist:.4f}")
+            print(f"{i + 1}. Well {well_i} <-> Well {well_j}: Distance = {dist:.4f}")
 
         return sorted_indices[:top_k]
 
@@ -825,7 +841,7 @@ class WellGroupingRecommendation:
             well_j = upper_tri_indices[1][idx]
             dist = distances[idx]
 
-            print(f"{i + 1}. Well {well_i} ↔ Well {well_j}: Distance = {dist:.4f}")
+            print(f"{i + 1}. Well {well_i} <-> Well {well_j}: Distance = {dist:.4f}")
 
         return sorted_indices[:top_k]
 
@@ -851,7 +867,7 @@ class WellGroupingRecommendation:
         print(f"Threshold: {threshold:.4f} ({threshold_percentile}th percentile)")
         print(f"\nAverage distances from each well to others:")
         for i, avg_dist in enumerate(avg_distances):
-            marker = " ← OUTLIER" if i in outliers else ""
+            marker = " <- OUTLIER" if i in outliers else ""
             print(f"  Well {i}: {avg_dist:.4f}{marker}")
 
         if len(outliers) > 0:

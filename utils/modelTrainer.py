@@ -98,9 +98,9 @@ class FinalModelTrainer:
         self, wells_with_vs: list[pl.DataFrame], target_feature: str = "VS"
     ) -> dict:
         """Treina um modelo final por cluster geológico."""
-        print(f"\n{'=' * 80}")
-        print("TRAINING FINAL MODELS PER CLUSTER")
-        print(f"{'=' * 80}")
+        # print(f"\n{'=' * 80}")
+        # print("TRAINING FINAL MODELS PER CLUSTER")
+        # print(f"{'=' * 80}")
 
         clusters = self.base_config.get("clusters", {})
         if not clusters:
@@ -114,22 +114,22 @@ class FinalModelTrainer:
         trained_clusters = {}
 
         for cluster_name, cluster_indices in clusters.items():
-            print(f"\n{'=' * 80}")
-            print(f"CLUSTER {cluster_name} — Wells {cluster_indices}")
-            print(f"{'=' * 80}")
+            # print(f"\n{'=' * 80}")
+            # print(f"CLUSTER {cluster_name} — Wells {cluster_indices}")
+            # print(f"{'=' * 80}")
 
             # Buscar config específica do cluster, com fallback para uma config global.
             cluster_config = self._resolve_cluster_config(cluster_name)
             if cluster_config is None:
-                print(f"  No best config found for cluster {cluster_name}, skipping")
+                # print(f"  No best config found for cluster {cluster_name}, skipping")
                 continue
 
             features_to_use = cluster_config["features"]
             hyperparams = cluster_config["hyperparams"]
             features_for_scaling = [f for f in features_to_use if f != "DEPT"]
 
-            print(f"  Features: {features_to_use}")
-            print(f"  Hyperparameters: {hyperparams}")
+            # print(f"  Features: {features_to_use}")
+            # print(f"  Hyperparameters: {hyperparams}")
 
             # Agregar todos os poços do cluster
             cluster_wells_dfs = [wells_with_vs[i] for i in cluster_indices]
@@ -139,7 +139,7 @@ class FinalModelTrainer:
             )
 
             if combined_df_cleaned.height == 0:
-                print(f"  No valid training data for cluster {cluster_name}, skipping")
+                # print(f"  No valid training data for cluster {cluster_name}, skipping")
                 continue
 
             cluster_center_values = (
@@ -168,7 +168,7 @@ class FinalModelTrainer:
                     processed_df.select(target_feature).to_series().to_list()
                 )
 
-            print(f"  Total training samples: {len(all_train_features)}")
+            # print(f"  Total training samples: {len(all_train_features)}")
 
             # Dataset e DataLoader
             augmentation = WellLogAugmentation(
@@ -186,7 +186,7 @@ class FinalModelTrainer:
                 batch_size=hyperparams["batch_size"],
                 shuffle=True,
             )
-            print(f"  Training sequences: {len(train_dataset)}")
+            # print(f"  Training sequences: {len(train_dataset)}")
 
             # Modelo
             model = Rebuilt_SAIDNN(
@@ -238,7 +238,7 @@ class FinalModelTrainer:
             )
 
             # Treino
-            print(f"\n  Training cluster {cluster_name}...")
+            # print(f"\n  Training cluster {cluster_name}...")
             trained_model, history, best_val_loss = train_model_with_validation_split(
                 model,
                 train_loader,
@@ -250,10 +250,10 @@ class FinalModelTrainer:
                 verbose=True,
             )
 
-            print("  Training complete!")
-            print(f"  Best validation loss: {best_val_loss:.6f}")
-            print(f"  Final training R²: {history['train_r2'][-1]:.4f}")
-            print(f"  Final validation R²: {history['val_r2'][-1]:.4f}")
+            # print("  Training complete!")
+            # print(f"  Best validation loss: {best_val_loss:.6f}")
+            # print(f"  Final training R²: {history['train_r2'][-1]:.4f}")
+            # print(f"  Final validation R²: {history['val_r2'][-1]:.4f}")
 
             # Salvar modelo e scaler do cluster
             model_path = os.path.join(
@@ -276,8 +276,8 @@ class FinalModelTrainer:
             )
             joblib.dump(scaler, scaler_path)
 
-            print(f"  Model saved to: {model_path}")
-            print(f"  Scaler saved to: {scaler_path}")
+            # print(f"  Model saved to: {model_path}")
+            # print(f"  Scaler saved to: {scaler_path}")
 
             # Salvar histórico e plot por cluster
             history_path = os.path.join(
@@ -330,7 +330,7 @@ class FinalModelTrainer:
             self.output_dir, "plots", f"training_history{suffix}.png"
         )
         plt.savefig(plot_path, dpi=300, bbox_inches="tight")
-        print(f"Training history plot saved to: {plot_path}")
+        # print(f"Training history plot saved to: {plot_path}")
         plt.close()
 
     def predict_on_wells(
@@ -404,7 +404,7 @@ class FinalModelTrainer:
             features_to_use = cluster_data["features"]
             features_for_scaling = cluster_data.get("features_for_scaling", [])
 
-            print(f"  {well_name} → Cluster {cluster_name}")
+            # print(f"  {well_name} → Cluster {cluster_name}")
 
             processed_df = self.preprocess_df(
                 well_df, scaler, features_for_scaling, target_feature
@@ -440,7 +440,7 @@ class FinalModelTrainer:
                         else:
                             try:
                                 actuals.append(float(actual_value))
-                            except (TypeError, ValueError):
+                            except TypeError, ValueError:
                                 actuals.append(np.nan)
 
                     if "DEPT" in well_df.columns:
@@ -448,7 +448,7 @@ class FinalModelTrainer:
                         if dept_value is not None:
                             try:
                                 depths.append(float(dept_value))
-                            except (TypeError, ValueError):
+                            except TypeError, ValueError:
                                 pass
 
             result_entry: dict[str, Any] = {
@@ -462,32 +462,33 @@ class FinalModelTrainer:
                 metrics = calculate_metrics(predictions, actuals)
                 result_entry["actuals"] = actuals
                 result_entry["metrics"] = metrics
-                print(f"    Generated {len(predictions)} predictions")
-                print(f"    R²: {metrics['R2']:.4f}")
-                print(f"    RMSE: {metrics['RMSE']:.4f}")
-                print(f"    MSE: {metrics['MSE']:.4f}")
-                print(f"    MAE: {metrics['MAE']:.4f}")
+                # print(f"    Generated {len(predictions)} predictions")
+                # print(f"    R²: {metrics['R2']:.4f}")
+                # print(f"    RMSE: {metrics['RMSE']:.4f}")
+                # print(f"    MSE: {metrics['MSE']:.4f}")
+                # print(f"    MAE: {metrics['MAE']:.4f}")
             else:
-                print(f"    Generated {len(predictions)} predictions")
+                # print(f"    Generated {len(predictions)} predictions")
                 if predictions:
-                    print(
-                        f"    VS range: [{np.min(predictions):.3f}, {np.max(predictions):.3f}]"
-                    )
+                    pass
+                    # print(
+                    #     f"    VS range: [{np.min(predictions):.3f}, {np.max(predictions):.3f}]"
+                    # )
 
             all_results[well_name] = result_entry
 
-        print(f"\n{'=' * 80}")
-        print("MAKING PREDICTIONS")
-        print(f"{'=' * 80}")
+        # print(f"\n{'=' * 80}")
+        # print("MAKING PREDICTIONS")
+        # print(f"{'=' * 80}")
 
-        print(f"\nPredicting on {len(wells_without_vs)} wells WITHOUT VS:")
+        # print(f"\nPredicting on {len(wells_without_vs)} wells WITHOUT VS:")
         for well_index, well_df in enumerate(wells_without_vs):
-            print(f"\n  Well {well_index + 1}/{len(wells_without_vs)}")
+            # print(f"\n  Well {well_index + 1}/{len(wells_without_vs)}")
             predict_well(well_df, f"well_without_vs_{well_index}", False)
 
-        print(f"\nValidating on {len(wells_with_vs)} wells WITH VS:")
+        # print(f"\nValidating on {len(wells_with_vs)} wells WITH VS:")
         for well_index, well_df in enumerate(wells_with_vs):
-            print(f"\n  Well {well_index + 1}/{len(wells_with_vs)}")
+            # print(f"\n  Well {well_index + 1}/{len(wells_with_vs)}")
             predict_well(well_df, f"well_with_vs_{well_index}", True)
 
         predictions_path = os.path.join(self.output_dir, "all_predictions.json")
@@ -503,15 +504,15 @@ class FinalModelTrainer:
         with open(predictions_path, "w", encoding="utf-8") as file_handle:
             json.dump(serializable_results, file_handle, indent=2, default=str)
 
-        print(f"\nAll predictions saved to: {predictions_path}")
+        # print(f"\nAll predictions saved to: {predictions_path}")
 
         return all_results
 
     def plot_predictions(self, all_results: dict[str, dict[str, Any]]):
         """Generate comprehensive prediction plots."""
-        print(f"\n{'=' * 80}")
-        print("GENERATING PLOTS")
-        print(f"{'=' * 80}")
+        # print(f"\n{'=' * 80}")
+        # print("GENERATING PLOTS")
+        # print(f"{'=' * 80}")
 
         wells_without_vs = {
             key: value
@@ -558,7 +559,7 @@ class FinalModelTrainer:
                 self.output_dir, "plots", "predictions_wells_without_vs.png"
             )
             plt.savefig(plot_path, dpi=300, bbox_inches="tight")
-            print(f"Predictions plot (wells without VS) saved to: {plot_path}")
+            # print(f"Predictions plot (wells without VS) saved to: {plot_path}")
             plt.close()
 
         wells_with_vs = {
@@ -638,7 +639,7 @@ class FinalModelTrainer:
                 self.output_dir, "plots", "predictions_vs_actuals_timeseries.png"
             )
             plt.savefig(plot_path, dpi=300, bbox_inches="tight")
-            print(f"Time series comparison plot saved to: {plot_path}")
+            # print(f"Time series comparison plot saved to: {plot_path}")
             plt.close()
 
             fig, axes = plt.subplots(1, n_wells, figsize=(5 * n_wells, 5))
@@ -686,7 +687,7 @@ class FinalModelTrainer:
                 self.output_dir, "plots", "predictions_vs_actuals_scatter.png"
             )
             plt.savefig(plot_path, dpi=300, bbox_inches="tight")
-            print(f"Scatter plot saved to: {plot_path}")
+            # print(f"Scatter plot saved to: {plot_path}")
             plt.close()
 
             fig, axes = plt.subplots(1, n_wells, figsize=(5 * n_wells, 5))
@@ -726,7 +727,7 @@ class FinalModelTrainer:
             plt.tight_layout()
             plot_path = os.path.join(self.output_dir, "plots", "error_distribution.png")
             plt.savefig(plot_path, dpi=300, bbox_inches="tight")
-            print(f"Error distribution plot saved to: {plot_path}")
+            # print(f"Error distribution plot saved to: {plot_path}")
             plt.close()
 
     def generate_summary_report(
@@ -854,10 +855,11 @@ class FinalModelTrainer:
             file_handle.write("END OF REPORT\n")
             file_handle.write("=" * 80 + "\n")
 
-        print(f"\nSummary report saved to: {report_path}")
+        # print(f"\nSummary report saved to: {report_path}")
 
         with open(report_path, "r", encoding="utf-8") as file_handle:
-            print(f"\n{file_handle.read()}")
+            pass
+            # print(f"\n{file_handle.read()}")
 
 
 def load_best_configuration(experiment_dir: str):
@@ -873,10 +875,10 @@ def load_best_configuration(experiment_dir: str):
         with open(best_config_path, "r", encoding="utf-8") as file_handle:
             best_config = json.load(file_handle)
 
-        print(f"\n{'=' * 80}")
-        print("LOADED BEST CLUSTER CONFIGURATION")
-        print(f"{'=' * 80}")
-        print(f"Clusters: {list(best_config.keys())}")
+        # print(f"\n{'=' * 80}")
+        # print("LOADED BEST CLUSTER CONFIGURATION")
+        # print(f"{'=' * 80}")
+        # print(f"Clusters: {list(best_config.keys())}")
         return best_config
 
     averaged_results_path = os.path.join(experiment_dir, "averaged_results.json")
@@ -889,15 +891,15 @@ def load_best_configuration(experiment_dir: str):
 
     best_config = averaged_results[0]
 
-    print(f"\n{'=' * 80}")
-    print("LOADED BEST CONFIGURATION FROM CROSS-VALIDATION")
-    print(f"{'=' * 80}")
-    print(f"Features: {best_config['features']}")
-    print(
-        f"Average Test R²: {best_config['avg_test_r2']:.4f} ± {best_config['std_test_r2']:.4f}"
-    )
-    print(
-        f"Average Test RMSE: {best_config['avg_test_rmse']:.4f} ± {best_config['std_test_rmse']:.4f}"
-    )
+    # print(f"\n{'=' * 80}")
+    # print("LOADED BEST CONFIGURATION FROM CROSS-VALIDATION")
+    # print(f"{'=' * 80}")
+    # print(f"Features: {best_config['features']}")
+    # print(
+    #     f"Average Test R²: {best_config['avg_test_r2']:.4f} ± {best_config['std_test_r2']:.4f}"
+    # )
+    # print(
+    #     f"Average Test RMSE: {best_config['avg_test_rmse']:.4f} ± {best_config['std_test_rmse']:.4f}"
+    # )
 
     return best_config
