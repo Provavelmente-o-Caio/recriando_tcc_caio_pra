@@ -1,0 +1,12 @@
+D:\Caio\recriando_tcc_caio_pra\missing_data\bin\Debug\missing_data.dll
+D:\Caio\recriando_tcc_caio_pra\missing_data\bin\Debug\missing_data.pdb
+D:\Caio\recriando_tcc_caio_pra\missing_data\obj\Debug\missing_data.csproj.AssemblyReference.cache
+D:\Caio\recriando_tcc_caio_pra\missing_data\obj\Debug\missing_data.csproj.CoreCompileInputs.cache
+D:\Caio\recriando_tcc_caio_pra\missing_data\obj\Debug\missing_data.dll
+D:\Caio\recriando_tcc_caio_pra\missing_data\obj\Debug\missing_data.pdb
+D:\Caio\recriando_tcc_caio_pra\missing_data\bin\Debug\Python.Runtime.dll
+D:\Caio\recriando_tcc_caio_pra\missing_data\bin\Debug\Python.Runtime.xml
+D:\Caio\recriando_tcc_caio_pra\missing_data\obj\Debug\missing_data.Properties.Resources.resources
+D:\Caio\recriando_tcc_caio_pra\missing_data\obj\Debug\missing_data.csproj.GenerateResource.cache
+D:\Caio\recriando_tcc_caio_pra\missing_data\obj\Debug\missing_data.csproj.CopyComplete
+D:\Caio\recriando_tcc_caio_pra\missing_data\bin\Debug\Newtonsoft.Json.dll
