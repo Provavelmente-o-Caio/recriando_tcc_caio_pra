@@ -54,7 +54,11 @@ namespace missing_data
         private CheckedListBox wellsListBoxPrediction;
         private CheckedListBox wellsListBoxTraining;
 
+        // Prediction Configuration
+        private TextBox trainedModelFolderTextBox;
+        private Button browseTrainingFolderButton;
 
+        // Configuration
         private TextBox statusTextBox;
         private Button runButton;
         private ComboBox vsComboBox;
@@ -67,7 +71,6 @@ namespace missing_data
         private ComboBox caliperComboBox;
         private TextBox outputCurveNameTextBox;
 
-        // Configuration
         private NumericUpDown sequenceLengthNumBox;
         private NumericUpDown maskValueNumBox;
         private NumericUpDown numEpochsNumBox;
@@ -345,7 +348,7 @@ namespace missing_data
         {
             var group = new GroupBox
             {
-                Text = "Prediction configuration",
+                Text = "Prediction Configuration",
                 Dock = DockStyle.Fill,
                 Padding = new Padding(12)
             };
@@ -354,12 +357,41 @@ namespace missing_data
             {
                 Dock = DockStyle.Fill,
                 AutoSize = true,
-                ColumnCount = 2,
-                RowCount = 10
+                ColumnCount = 3,
+                RowCount = 2
             };
 
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
+
+            layout.Controls.Add(
+                new Label
+                {
+                    Text = "Training folder:",
+                    Dock = DockStyle.Fill,
+                    TextAlign = ContentAlignment.MiddleLeft
+                },
+                0,
+                0
+            );
+
+            trainedModelFolderTextBox = new TextBox
+            {
+                Dock = DockStyle.Fill,
+                ReadOnly = true
+            };
+
+            browseTrainingFolderButton = new Button
+            {
+                Text = "Browse...",
+                Dock = DockStyle.Fill
+            };
+
+            browseTrainingFolderButton.Click += BrowseTrainingFolderButton_Click;
+
+            layout.Controls.Add(trainedModelFolderTextBox, 1, 0);
+            layout.Controls.Add(browseTrainingFolderButton, 2, 0);
 
             runButton = new Button
             {
@@ -374,6 +406,19 @@ namespace missing_data
             group.Controls.Add(layout);
 
             return group;
+        }
+
+        private void BrowseTrainingFolderButton_Click(object sender, EventArgs e)
+        {
+            using (var dialog = new FolderBrowserDialog())
+            {
+                dialog.Description = "Select the trained experiment folder";
+
+                if (dialog.ShowDialog() == DialogResult.OK)
+                {
+                    trainedModelFolderTextBox.Text = dialog.SelectedPath;
+                }
+            }
         }
 
         private Control BuildTrainingWellSelectionPanel()
@@ -555,6 +600,7 @@ namespace missing_data
                     return;
                 }
                 var selectedTrainingConfiguration = getCurveMapping();
+                var pythonConfiguration = GetPythonConfiguration();
                 
                 string workDir = Path.Combine(
                     Path.GetTempPath(), "vs_predictior_petrel"
@@ -565,7 +611,7 @@ namespace missing_data
                 string inputPath = Path.Combine(workDir, "cluster_analysis_input.json");
                 string outputPath = Path.Combine(workDir, "cluster_analysis_output.json");
 
-                var payload = BuildClusterAnalysisPayload(selectedWells, selectedTrainingConfiguration);
+                var payload = BuildClusterAnalysisPayload(selectedWells, selectedTrainingConfiguration, pythonConfiguration);
 
                 string json = JsonConvert.SerializeObject(payload, Formatting.Indented);
 
@@ -772,6 +818,17 @@ namespace missing_data
 
         private async Task RunButton_ClickAsync(CheckedListBox clb)
         {
+            if (string.IsNullOrWhiteSpace(trainedModelFolderTextBox.Text))
+            {
+                MessageBox.Show(
+                    "Please select a trained model folder.",
+                    "Missing folder",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+
+                return;
+            }
+
             try
             {
                 runButton.Enabled = false;
@@ -792,6 +849,7 @@ namespace missing_data
                 }
 
                 var selectedPredictionConfiguration = getCurveMapping();
+                var pythonConfiguration = GetPythonConfiguration();
 
                 AppendStatus("Selected wells: " + selectedWells.Count().ToString());
 
@@ -806,7 +864,7 @@ namespace missing_data
 
                 AppendStatus("Exporting selected wells to JSON...");
 
-                var payload = BuildClusterAnalysisPayload(selectedWells, selectedPredictionConfiguration);
+                var payload = BuildClusterAnalysisPayload(selectedWells, selectedPredictionConfiguration, pythonConfiguration);
 
                 string json = JsonConvert.SerializeObject(payload, Formatting.Indented);
 
@@ -958,7 +1016,8 @@ namespace missing_data
                         runnerPath,
                         inputPath,
                         outputPath,
-                        clustersPath
+                        clustersPath,
+                        trainedModelFolderTextBox.Text
                     );
 
                 if (!string.IsNullOrWhiteSpace(result_clusters.Stdout))
@@ -1248,7 +1307,7 @@ namespace missing_data
             return selected;
         }
 
-        private object BuildClusterAnalysisPayload(List<Borehole> selectedWells, Dictionary<String, String> curveMapping)
+        private object BuildClusterAnalysisPayload(List<Borehole> selectedWells, Dictionary<String, String> curveMapping, PythonConfiguration pythonConfiguration)
         {
             var wells = new List<object>();
 
@@ -1264,7 +1323,8 @@ namespace missing_data
             return new
             {
                 curveMapping,
-                wells
+                wells,
+                pythonConfiguration
             };
         }
 

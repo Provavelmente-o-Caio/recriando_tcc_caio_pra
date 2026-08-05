@@ -125,7 +125,7 @@ namespace missing_data
         }
 
 
-        public static async Task<PythonProcessResult> RunPythonPredictionAsync(string pythonExe, string runnerPath, string inputPath, string outputPath, string clustersPath)
+        public static async Task<PythonProcessResult> RunPythonPredictionAsync(string pythonExe, string runnerPath, string inputPath, string outputPath, string clustersPath, string trainedModelFolder)
         {
             if (!File.Exists(pythonExe))
             {
@@ -147,7 +147,8 @@ namespace missing_data
                 $"\"{runnerPath}\" predict " +
                 $"--input \"{inputPath}\" " +
                 $"--output \"{outputPath}\" " +
-                $"--cluster \"{clustersPath}\"";
+                $"--cluster \"{clustersPath}\" " +
+                $"--experiment_dir \"{trainedModelFolder}\"";
 
             var psi = new ProcessStartInfo
             {
