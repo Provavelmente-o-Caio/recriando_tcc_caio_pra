@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from datetime import datetime
 from typing import Any
 
@@ -112,8 +113,10 @@ class FinalModelTrainer:
         sequence_length = self.base_config["sequence_length"]
         mask_value = self.base_config["mask_value"]
         trained_clusters = {}
+        total_start_time = time.perf_counter()
 
         for cluster_name, cluster_indices in clusters.items():
+            cluster_start_time = time.perf_counter()
             # print(f"\n{'=' * 80}")
             # print(f"CLUSTER {cluster_name} — Wells {cluster_indices}")
             # print(f"{'=' * 80}")
@@ -238,7 +241,7 @@ class FinalModelTrainer:
             )
 
             # Treino
-            # print(f"\n  Training cluster {cluster_name}...")
+            # print(f"  Training cluster {cluster_name}...")
             trained_model, history, best_val_loss = train_model_with_validation_split(
                 model,
                 train_loader,
@@ -248,6 +251,11 @@ class FinalModelTrainer:
                 self.base_config["num_epochs"],
                 self.base_config["patience"],
                 verbose=True,
+            )
+            cluster_elapsed = time.perf_counter() - cluster_start_time
+            print(
+                f"\n  Cluster {cluster_name} trained in {cluster_elapsed:.1f}s "
+                f"({cluster_elapsed / 60:.1f} min)"
             )
 
             # print("  Training complete!")
@@ -271,6 +279,8 @@ class FinalModelTrainer:
                     "hyperparams": hyperparams,
                     "cluster": cluster_name,
                     "cluster_wells": cluster_indices,
+                    "feature_center": cluster_feature_center,
+                    "sequence_length": sequence_length,
                 },
                 model_path,
             )
@@ -298,7 +308,110 @@ class FinalModelTrainer:
                 "cluster_wells": cluster_indices,
             }
 
+        total_elapsed = time.perf_counter() - total_start_time
+        print(
+            f"\nFinal model training finished in {total_elapsed:.1f}s "
+            f"({total_elapsed / 60:.1f} min) across {len(trained_clusters)} clusters"
+        )
+
         return trained_clusters
+
+    def _compute_feature_center(
+        self,
+        wells_with_vs: list[pl.DataFrame],
+        cluster_indices: list[int],
+        features_for_scaling: list[str],
+        target_feature: str,
+    ) -> dict[str, float]:
+        cluster_wells_dfs = [wells_with_vs[i] for i in cluster_indices]
+        combined_df = pl.concat(cluster_wells_dfs, how="vertical_relaxed")
+        combined_df_cleaned = combined_df.filter(
+            pl.col(target_feature).is_not_null() & ~pl.col(target_feature).is_nan()
+        )
+
+        if combined_df_cleaned.height == 0:
+            return {}
+
+        cluster_center_values = (
+            combined_df_cleaned.select(features_for_scaling).to_numpy().mean(axis=0)
+        )
+        return {
+            feature: float(cluster_center_values[index])
+            for index, feature in enumerate(features_for_scaling)
+        }
+
+    def load_final_models(
+        self, wells_with_vs: list[pl.DataFrame], target_feature: str = "VS"
+    ) -> dict:
+        """Load saved final models and scalers from disk instead of retraining."""
+        clusters = self.base_config.get("clusters", {})
+        device = self._get_device()
+        loaded_clusters = {}
+
+        for cluster_name in clusters:
+            model_path = os.path.join(
+                self.output_dir, f"final_model_cluster_{cluster_name}.pth"
+            )
+            scaler_path = os.path.join(
+                self.output_dir, f"final_scaler_cluster_{cluster_name}.pkl"
+            )
+
+            if not (os.path.exists(model_path) and os.path.exists(scaler_path)):
+                print(
+                    f"  No saved model found for cluster {cluster_name}, skipping"
+                )
+                continue
+
+            checkpoint = torch.load(
+                model_path, map_location=device, weights_only=True
+            )
+            hyperparams = checkpoint["hyperparams"]
+            features_to_use = checkpoint["features"]
+            cluster_indices = checkpoint["cluster_wells"]
+            features_for_scaling = [f for f in features_to_use if f != "DEPT"]
+
+            model = Rebuilt_SAIDNN(
+                n_features=len(features_to_use),
+                sequence_length=checkpoint.get(
+                    "sequence_length", self.base_config["sequence_length"]
+                ),
+                embed_dim=hyperparams["embed_dim"],
+                num_heads=hyperparams["num_heads"],
+                num_blocks=hyperparams["num_blocks"],
+                dropout=hyperparams["dropout"],
+                use_attention_pooling=True,
+            )
+            model.load_state_dict(checkpoint["model_state_dict"])
+            model.to(device)
+
+            scaler = joblib.load(scaler_path)
+
+            feature_center = checkpoint.get("feature_center")
+            if not feature_center:
+                feature_center = self._compute_feature_center(
+                    wells_with_vs, cluster_indices, features_for_scaling, target_feature
+                )
+                if not feature_center:
+                    print(
+                        f"  Could not recompute feature center for cluster "
+                        f"{cluster_name}, skipping"
+                    )
+                    continue
+
+            loaded_clusters[cluster_name] = {
+                "model": model,
+                "scaler": scaler,
+                "features": features_to_use,
+                "features_for_scaling": features_for_scaling,
+                "feature_center": feature_center,
+                "cluster_wells": cluster_indices,
+            }
+            print(f"  Loaded saved model for cluster {cluster_name}")
+
+        print(
+            f"\nLoaded {len(loaded_clusters)} final model(s) from {self.output_dir}"
+        )
+        return loaded_clusters
 
     def plot_training_history(
         self, history: dict[str, list[float]], cluster_name: str

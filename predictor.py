@@ -2,7 +2,8 @@ import argparse
 import json
 import math
 import os
-from typing import Any, List, Literal, Set, Union
+import time
+from typing import Any, Literal
 
 import lasio as ls
 import polars as pl
@@ -26,15 +27,15 @@ REQUIRED_CURVES = ["VP", "RHO", "GR", "POROSIDADE", "SATURACAO"]
 
 
 class Predictor:
-    def __init__(self, model_root, device) -> None:
+    def __init__(self, model_root: str, device: None | torch.device) -> None:
         # TODO:
-        self.model_root = model_root
-        self.device = self._resolve_device(device)
+        self.model_root: str = model_root
+        self.device: None | torch.device = self._resolve_device(device)
         self.clusters = {}
         # self.wells = self._read_all_wells_with_dept_to_list(features="all")
         # self.wells_dfs = self._filter_common_features(self.wells, ignore=["VS"])
 
-    def _resolve_device(self, device) -> torch.device:
+    def _resolve_device(self, device : None | torch.device = None) -> torch.device:
         if device:
             return torch.device(device)
         elif torch.cuda.is_available():
@@ -45,11 +46,11 @@ class Predictor:
             return torch.device("cpu")
 
     def _read_all_wells_with_dept_to_list(
-        self, features: Union[List[str], Literal["all"]]
-    ) -> List[pl.DataFrame]:
+        self, features: list[str] | Literal["all"]
+    ) -> list[pl.DataFrame]:
         files = self._get_all_raw_files()
 
-        wells_with_dept: List[pl.DataFrame] = []
+        wells_with_dept: list[pl.DataFrame] = []
 
         for file_name in files:
             well_with_dept = self._read_single_well(file_name, True, features)
@@ -64,7 +65,7 @@ class Predictor:
 
         return wells_with_dept
 
-    def _get_all_raw_files(self) -> List[str]:
+    def _get_all_raw_files(self) -> list[str]:
         all_files = sorted(os.listdir(self.model_root))
         print(all_files)
 
@@ -74,7 +75,7 @@ class Predictor:
         self,
         file_name: str,
         with_dept: bool,
-        features: Union[List[str], Literal["all"]],
+        features: list[str] | Literal["all"],
     ) -> pl.DataFrame:
         well = ls.read(f"{self.model_root}/{file_name}")
         df = pl.from_pandas(well.df().reset_index())
@@ -82,7 +83,7 @@ class Predictor:
         if features == "all":
             return df
 
-        selected_features: Set[str] = set(features)
+        selected_features: set[str] = set(features)
         if with_dept:
             selected_features.add("DEPT")
 
@@ -92,11 +93,11 @@ class Predictor:
 
         return df
 
-    def _filter_common_features(self, wells: List[pl.DataFrame], ignore: List[str]):
-        feature_sets: List[Set[str]] = [
+    def _filter_common_features(self, wells: list[pl.DataFrame], ignore: list[str]):
+        feature_sets: list[set[str]] = [
             set(well.columns) - set(ignore) for well in wells
         ]
-        common_features: Set[str] = feature_sets[0].copy()
+        common_features: set[str] = feature_sets[0].copy()
 
         for feature_set in feature_sets[1:]:
             common_features.intersection_update(feature_set)
@@ -260,27 +261,50 @@ class Predictor:
         # ## Step 2: Run Cross-Fold Validation
         best_config = load_best_configuration(experiment_dir)
 
-        # ## STEP 3: Train Final Model
+        # ## STEP 3: Load or Train Final Model
         final_output_dir = os.path.join(experiment_dir, "final_model")
 
         trainer = FinalModelTrainer(
             best_config, base_config, output_dir=final_output_dir
         )
-        trained_clusters = trainer.train_final_model(
+        train_start = time.perf_counter()
+        trained_clusters = trainer.load_final_models(
             wells_with_vs, target_feature=base_config["target_feature"]
+        )
+        if not trained_clusters:
+            print("\nNo saved final models found; training from scratch...")
+            trained_clusters = trainer.train_final_model(
+                wells_with_vs, target_feature=base_config["target_feature"]
+            )
+        train_elapsed = time.perf_counter() - train_start
+        print(
+            f"\n[PERF] load/train final model took {train_elapsed:.1f}s "
+            f"({train_elapsed / 60:.1f} min)"
         )
 
         # ## STEP 4: Make Predictions
+        predict_start = time.perf_counter()
         all_results = trainer.predict_on_wells(
             trained_clusters,
             wells_without_vs,
             wells_with_vs,
             target_feature=base_config["target_feature"],
         )
+        predict_elapsed = time.perf_counter() - predict_start
+        print(
+            f"\n[PERF] predict_on_wells took {predict_elapsed:.1f}s "
+            f"({predict_elapsed / 60:.1f} min)"
+        )
 
         # ## STEP 5: Generate Plots and Reports
+        plot_start = time.perf_counter()
         trainer.plot_predictions(all_results)
         trainer.generate_summary_report(all_results, best_config)
+        plot_elapsed = time.perf_counter() - plot_start
+        print(
+            f"\n[PERF] plots + summary report took {plot_elapsed:.1f}s "
+            f"({plot_elapsed / 60:.1f} min)"
+        )
 
     def train(self, input_path: str, output_path: str, recommended_clusters_path: str):
         # JANK: THIS IS A TEMPORARY FIX
