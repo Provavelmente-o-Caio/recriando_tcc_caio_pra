@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,13 +9,13 @@ import torch.nn.functional as F
 class Rebuilt_SAIDNN(nn.Module):
     def __init__(
         self,
-        n_features,
-        sequence_length=10,
-        embed_dim=160,
-        num_heads=3,
-        num_blocks=2,
-        dropout=0.2,
-        use_attention_pooling=True,
+        n_features: int,
+        sequence_length: int = 10,
+        embed_dim: int = 160,
+        num_heads: int = 3,
+        num_blocks: int = 2,
+        dropout: float = 0.2,
+        use_attention_pooling: bool = True,
     ):
         super(Rebuilt_SAIDNN, self).__init__()
         # CNNs com conexões residuais: três blocos convolucionais com skip connections.
@@ -64,7 +63,7 @@ class Rebuilt_SAIDNN(nn.Module):
 
         # Layer normalization após CNNs: adicionada para estabilização adicional das ativações.
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x shape: (batch_size, sequence_length, n_features)
         # 1. Project input features to embedding dimension
         x = self.input_projection(x)  # (batch_size, sequence_length, embed_dim)
@@ -96,11 +95,11 @@ class Rebuilt_SAIDNN(nn.Module):
 
 
 class AttentionPooling(nn.Module):
-    def __init__(self, embed_dim):
+    def __init__(self, embed_dim: int):
         super(AttentionPooling, self).__init__()
         self.attention_weights = nn.Linear(embed_dim, 1)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x shape: (batch_size, sequence_length, embed_dim)
         weights = self.attention_weights(x)  # (batch_size, sequence_length, 1)
         weights = F.softmax(weights, dim=1)  # Normalizar pesos
@@ -111,7 +110,13 @@ class AttentionPooling(nn.Module):
 class AttentionBlock(nn.Module):
     """Enhanced Transformer block with pre-normalization"""
 
-    def __init__(self, embed_dimmension, num_heads, dropout=0.1, ffn_expansion=4):
+    def __init__(
+        self,
+        embed_dimmension: int,
+        num_heads: int,
+        dropout: float = 0.1,
+        ffn_expansion: int = 4,
+    ):
         super(AttentionBlock, self).__init__()
 
         # Pre-normalization
@@ -133,7 +138,7 @@ class AttentionBlock(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Pre-norm attention with residual
         x_norm = self.norm1(x)
         attn_output, _ = self.attention(x_norm, x_norm, x_norm)

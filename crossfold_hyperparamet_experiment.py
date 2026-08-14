@@ -1,7 +1,7 @@
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, List, TypedDict
+from typing import Any, TypedDict
 
 import joblib
 import numpy as np
@@ -23,7 +23,10 @@ from utils.training_utilities import (
 )
 from utils.WellLogDataset import WellLogAugmentation, WellLogDataset
 
+from dataclasses import dataclass
 
+
+@dataclass
 class TestMetrics(TypedDict, total=False):
     R2: float
     RMSE: float
@@ -38,9 +41,9 @@ class TestMetrics(TypedDict, total=False):
 
 class ClusterBestConfig(TypedDict):
     cluster: str
-    cluster_wells: List[int]
-    features: List[str]
-    hyperparams: Dict[str, Any]
+    cluster_wells: list[int]
+    features: list[str]
+    hyperparams: dict[str, float]
     avg_r2: float
     std_r2: float
     best_fold_r2: float
@@ -51,107 +54,20 @@ class ClusterBestConfig(TypedDict):
 
 
 class CrossFoldHyperparameterExperiment:
-    def __init__(self, base_config, results_dir):
-        self.base_config = base_config
+    def __init__(
+        self, base_config: dict[str, Any], results_dir: str | None = None
+    ):
+        self.base_config: dict[str, Any] = base_config
         self.result = {}
-        self.experiment_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.results_dir = results_dir
+        self.experiment_id: str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if results_dir is None:
+            results_dir = os.path.join("results", self.experiment_id)
+        self.results_dir: str = results_dir
         os.makedirs(self.results_dir, exist_ok=True)
 
     def define_hyperparameter_configurations(self):
         """Define LARGER model configurations"""
         configurations = [
-            # {
-            #     "embed_dim": 256,
-            #     "num_heads": 8,
-            #     "num_blocks": 4,
-            #     "dropout": 0.3,
-            #     "learning_rate": 0.0001,
-            #     "batch_size": 16,
-            #     "scheduler_type": "plateau",
-            #     "criterion_type": "huber",
-            #     "optimizer_type": "adamw"
-            # },
-            # {
-            #     "embed_dim": 256,
-            #     "num_heads": 16,
-            #     "num_blocks": 3,
-            #     "dropout": 0.25,
-            #     "learning_rate": 0.0005,
-            #     "batch_size": 16,
-            #     "scheduler_type": "cosine",
-            #     "criterion_type": "huber",
-            #     "optimizer_type": "adamw"
-            # },
-            # # DEEP MODELS - More Layers
-            # {
-            #     "embed_dim": 128,
-            #     "num_heads": 8,
-            #     "num_blocks": 6,  # More blocks
-            #     "dropout": 0.3,
-            #     "learning_rate": 0.0001,
-            #     "batch_size": 32,
-            #     "scheduler_type": "plateau",
-            #     "criterion_type": "huber",
-            #     "optimizer_type": "adamw"
-            # },
-            # {
-            #     "embed_dim": 128,
-            #     "num_heads": 4,
-            #     "num_blocks": 5,  # More blocks
-            #     "dropout": 0.25,
-            #     "learning_rate": 0.0005,
-            #     "batch_size": 32,
-            #     "scheduler_type": "cosine",
-            #     "criterion_type": "mse",
-            #     "optimizer_type": "adam"
-            # },
-            # # MEDIUM-LARGE MODELS
-            # {
-            #     "embed_dim": 128,
-            #     "num_heads": 8,
-            #     "num_blocks": 3,
-            #     "dropout": 0.2,
-            #     "learning_rate": 0.0001,
-            #     "batch_size": 32,
-            #     "scheduler_type": "plateau",
-            #     "criterion_type": "huber",
-            #     "optimizer_type": "adamw"
-            # },
-            # {
-            #     "embed_dim": 128,
-            #     "num_heads": 4,
-            #     "num_blocks": 4,
-            #     "dropout": 0.3,
-            #     "learning_rate": 0.0005,
-            #     "batch_size": 32,
-            #     "scheduler_type": "cosine",
-            #     "criterion_type": "huber",
-            #     "optimizer_type": "adamw"
-            # },
-            # {
-            #     "embed_dim": 192,
-            #     "num_heads": 8,
-            #     "num_blocks": 3,
-            #     "dropout": 0.25,
-            #     "learning_rate": 0.0005,
-            #     "batch_size": 24,
-            #     "scheduler_type": "plateau",
-            #     "criterion_type": "huber",
-            #     "optimizer_type": "adamw"
-            # },
-            # # BASELINE (for comparison)
-            # {
-            #     "embed_dim": 64,
-            #     "num_heads": 4,
-            #     "num_blocks": 2,
-            #     "dropout": 0.2,
-            #     "learning_rate": 0.001,
-            #     "batch_size": 32,
-            #     "scheduler_type": "plateau",
-            #     "criterion_type": "huber",
-            #     "optimizer_type": "adam"
-            # },
             # WIDER MODELS
             {
                 "embed_dim": 160,
@@ -164,17 +80,6 @@ class CrossFoldHyperparameterExperiment:
                 "criterion_type": "huber",
                 "optimizer_type": "adamw",
             },
-            # {
-            #     "embed_dim": 144,
-            #     "num_heads": 12,  # More heads
-            #     "num_blocks": 3,
-            #     "dropout": 0.25,
-            #     "learning_rate": 0.0003,
-            #     "batch_size": 32,
-            #     "scheduler_type": "cosine",
-            #     "criterion_type": "mse",
-            #     "optimizer_type": "adam"
-            # }
         ]
 
         return configurations
@@ -326,23 +231,6 @@ class CrossFoldHyperparameterExperiment:
             # key agora tem 4 elementos: features, hyperparams, fold_idx, cluster_name
             str_key = f"cluster_{key[3]}_features_{hash(key[0])}_fold_{key[2]}"
             serializable_value = {k: v for k, v in value.items() if k != "history"}
-            serializable_value["experiment_id"] = self.experiment_id
-            serializable_results[str_key] = serializable_value
-
-        with open(results_path, "w") as f:
-            json.dump(serializable_results, f, indent=2, default=str)
-
-        print(f"\nResults saved to {results_path}")
-
-    def save_results(self):
-        results_path = os.path.join(self.results_dir, "experiment_results.json")
-
-        serializable_results = {}
-        for key, value in self.results.items():
-            str_key = f"{key[0]}_{hash(key[1])}_fold_{key[2]}"
-            serializable_value = {
-                k: v for k, v in value.items() if k not in ["history"]
-            }
             serializable_value["experiment_id"] = self.experiment_id
             serializable_results[str_key] = serializable_value
 
