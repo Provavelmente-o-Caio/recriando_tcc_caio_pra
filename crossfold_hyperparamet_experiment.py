@@ -89,8 +89,10 @@ class CrossFoldHyperparameterExperiment:
         features_to_use,
         all_train_features,
         all_train_targets,
+        all_train_group_ids,
         test_features_data,
         test_target_data,
+        test_group_ids,
         scaler,
         hyperparams,
         fold_idx,
@@ -111,6 +113,7 @@ class CrossFoldHyperparameterExperiment:
             sequence_length,
             mask_value,
             augmentation=augmentation,
+            sample_group_ids=all_train_group_ids,
         )
         test_dataset = WellLogDataset(
             test_features_data,
@@ -118,6 +121,7 @@ class CrossFoldHyperparameterExperiment:
             sequence_length,
             mask_value,
             augmentation=None,
+            sample_group_ids=test_group_ids,
         )
 
         train_loader = DataLoader(
@@ -492,13 +496,13 @@ class CrossFoldHyperparameterExperiment:
 
                     all_train_features = []
                     all_train_targets = []
-                    for df in processed_train_dfs:
-                        all_train_features.extend(
-                            df.select(features_to_use).to_numpy().tolist()
-                        )
-                        all_train_targets.extend(
-                            df.get_column(target_feature).to_list()
-                        )
+                    all_train_group_ids = []
+                    for train_idx, df in zip(train_idxs, processed_train_dfs):
+                        feature_rows = df.select(features_to_use).to_numpy().tolist()
+                        target_rows = df.get_column(target_feature).to_list()
+                        all_train_features.extend(feature_rows)
+                        all_train_targets.extend(target_rows)
+                        all_train_group_ids.extend([train_idx] * len(feature_rows))
 
                     processed_test_df = self.preprocess_df(
                         test_well_df, scaler, features_for_scaling, target_feature
@@ -509,6 +513,7 @@ class CrossFoldHyperparameterExperiment:
                     test_target_data = processed_test_df.get_column(
                         target_feature
                     ).to_numpy()
+                    test_group_ids = [test_well_idx] * len(test_features_data)
 
                     if len(all_train_features) == 0:
                         print(f"  No valid training samples for fold {test_well_idx}")
@@ -524,8 +529,10 @@ class CrossFoldHyperparameterExperiment:
                                 features_to_use,
                                 all_train_features,
                                 all_train_targets,
+                                all_train_group_ids,
                                 test_features_data,
                                 test_target_data,
+                                test_group_ids,
                                 scaler,
                                 hyperparam_config,
                                 fold_idx=test_well_idx,

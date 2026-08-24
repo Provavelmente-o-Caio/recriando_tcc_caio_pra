@@ -1,5 +1,6 @@
 import copy
 import random
+from collections import Counter
 from typing import List
 
 import numpy as np
@@ -75,6 +76,46 @@ def _set_dataset_training_mode(dataset, training: bool) -> None:
         base.train()
     elif (not training) and hasattr(base, "eval"):
         base.eval()
+
+
+def _group_aware_validation_split(
+    sequence_group_ids: list, val_size: int, split_seed: int
+) -> tuple[list[int], list[int]] | None:
+    if len(sequence_group_ids) == 0:
+        return None
+
+    unique_groups = list(dict.fromkeys(sequence_group_ids))
+    if len(unique_groups) < 2:
+        return None
+
+    shuffled_groups = unique_groups.copy()
+    random.Random(split_seed).shuffle(shuffled_groups)
+    group_counts = Counter(sequence_group_ids)
+
+    val_groups: set = set()
+    val_count = 0
+    for group in shuffled_groups:
+        if len(val_groups) >= len(unique_groups) - 1:
+            break
+
+        val_groups.add(group)
+        val_count += group_counts[group]
+        if val_count >= val_size:
+            break
+
+    train_indices = [
+        index
+        for index, group in enumerate(sequence_group_ids)
+        if group not in val_groups
+    ]
+    val_indices = [
+        index for index, group in enumerate(sequence_group_ids) if group in val_groups
+    ]
+
+    if not train_indices or not val_indices:
+        return None
+
+    return train_indices, val_indices
 
 
 class WarmupScheduler:
@@ -188,10 +229,19 @@ def train_model_with_validation_split(
     val_size = min(max(val_size, 1), dataset_size - 1)
     train_size = dataset_size - val_size
 
-    split_generator = torch.Generator().manual_seed(split_seed)
-    shuffled_indices = torch.randperm(dataset_size, generator=split_generator).tolist()
-    val_indices = shuffled_indices[:val_size]
-    train_indices = shuffled_indices[val_size:]
+    sequence_group_ids = getattr(train_loader.dataset, "sequence_group_ids", None)
+    split_indices = None
+    if isinstance(sequence_group_ids, list) and len(sequence_group_ids) == dataset_size:
+        split_indices = _group_aware_validation_split(
+            sequence_group_ids, val_size, split_seed
+        )
+
+    if split_indices is not None:
+        train_indices, val_indices = split_indices
+    else:
+        split_index = dataset_size - val_size
+        train_indices = list(range(split_index))
+        val_indices = list(range(split_index, dataset_size))
 
     train_subset = Subset(train_loader.dataset, train_indices)
     val_subset = Subset(train_loader.dataset, val_indices)

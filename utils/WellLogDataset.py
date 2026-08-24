@@ -5,26 +5,55 @@ from torch.utils.data import Dataset
 
 class WellLogDataset(Dataset):
     def __init__(
-        self, features_data, target_data, sequence_length, mask_value, augmentation=None
+        self,
+        features_data,
+        target_data,
+        sequence_length,
+        mask_value,
+        augmentation=None,
+        sample_group_ids=None,
     ):
         self.features_data = features_data
         self.target_data = target_data
         self.sequence_length = sequence_length
         self.mask_value = mask_value
         self.augmentation = augmentation
+        self.sample_group_ids = sample_group_ids
         self.sequences = []
         self.targets = []
+        self.sequence_group_ids = []
         self.training = True
+
+        if self.sample_group_ids is not None and len(self.sample_group_ids) != len(
+            self.features_data
+        ):
+            raise ValueError(
+                "sample_group_ids length must match features_data length."
+            )
+
         self._create_sequences()
 
     def _create_sequences(self):
         for i in range(len(self.features_data) - self.sequence_length):
-            if i + self.sequence_length < len(self.target_data):
-                sequence_features = self.features_data[i : i + self.sequence_length]
-                target_value = self.target_data[i + self.sequence_length]
-                if target_value != self.mask_value:
-                    self.sequences.append(sequence_features)
-                    self.targets.append(target_value)
+            target_idx = i + self.sequence_length
+            if target_idx >= len(self.target_data):
+                continue
+
+            if self.sample_group_ids is not None:
+                sequence_and_target_groups = self.sample_group_ids[i : target_idx + 1]
+                sequence_group = sequence_and_target_groups[0]
+                if any(group != sequence_group for group in sequence_and_target_groups):
+                    continue
+            else:
+                sequence_group = None
+
+            sequence_features = self.features_data[i:target_idx]
+            target_value = self.target_data[target_idx]
+            if target_value != self.mask_value:
+                self.sequences.append(sequence_features)
+                self.targets.append(target_value)
+                if sequence_group is not None:
+                    self.sequence_group_ids.append(sequence_group)
 
     def train(self):
         """Ativa augmentação (modo treino)"""

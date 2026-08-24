@@ -160,16 +160,16 @@ class FinalModelTrainer:
             # Preparar features e targets
             all_train_features = []
             all_train_targets = []
-            for df in cluster_wells_dfs:
+            all_train_group_ids = []
+            for well_idx, df in zip(cluster_indices, cluster_wells_dfs):
                 processed_df = self.preprocess_df(
                     df, scaler, features_for_scaling, target_feature
                 )
-                all_train_features.extend(
-                    processed_df.select(features_to_use).to_numpy().tolist()
-                )
-                all_train_targets.extend(
-                    processed_df.select(target_feature).to_series().to_list()
-                )
+                feature_rows = processed_df.select(features_to_use).to_numpy().tolist()
+                target_rows = processed_df.select(target_feature).to_series().to_list()
+                all_train_features.extend(feature_rows)
+                all_train_targets.extend(target_rows)
+                all_train_group_ids.extend([well_idx] * len(feature_rows))
 
             # print(f"  Total training samples: {len(all_train_features)}")
 
@@ -183,6 +183,7 @@ class FinalModelTrainer:
                 sequence_length,
                 mask_value,
                 augmentation=augmentation,
+                sample_group_ids=all_train_group_ids,
             )
             train_loader = DataLoader(
                 train_dataset,
