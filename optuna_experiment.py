@@ -321,7 +321,7 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
         wells_data,
         target_feature="VS",
         n_trials=30,
-        n_jobs=1,
+        n_jobs=10,
     ):
         wells_with_target = [
             df for df in wells_data if target_feature in df.columns
@@ -415,6 +415,7 @@ def main():
     )
     parser.add_argument("--trials", type=int, default=30)
     parser.add_argument("--model_root", default="data/petrobras")
+    parser.add_argument("--jobs", type=int, default=1)
     args = parser.parse_args()
 
     predictor = Predictor(model_root=args.model_root, device=None)
@@ -424,7 +425,7 @@ def main():
 
     experiment = OptunaCrossFoldExperiment(base_config, results_dir=args.output)
     best_config = experiment.run_optuna_optimization(
-        feature_combinations, wells_with_vs, n_trials=args.trials
+        feature_combinations, wells_with_vs, n_trials=args.trials, n_jobs=args.jobs
     )
     experiment.save_best_config(best_config)
 

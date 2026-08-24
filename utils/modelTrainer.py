@@ -553,7 +553,7 @@ class FinalModelTrainer:
                         else:
                             try:
                                 actuals.append(float(actual_value))
-                            except TypeError, ValueError:
+                            except (TypeError, ValueError):
                                 actuals.append(np.nan)
 
                     if "DEPT" in well_df.columns:
@@ -561,7 +561,7 @@ class FinalModelTrainer:
                         if dept_value is not None:
                             try:
                                 depths.append(float(dept_value))
-                            except TypeError, ValueError:
+                            except (TypeError, ValueError):
                                 pass
 
             result_entry: dict[str, Any] = {

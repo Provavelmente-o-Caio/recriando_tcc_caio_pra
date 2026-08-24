@@ -486,7 +486,7 @@ def wells_to_dataframes(
                 try:
                     md_float = float(md)
                     value_float = float(value)
-                except TypeError, ValueError:
+                except (TypeError, ValueError):
                     continue
 
                 if math.isnan(md_float) or math.isnan(value_float):
