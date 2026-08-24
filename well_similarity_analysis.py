@@ -778,7 +778,7 @@ class WellGroupingRecommendation:
     def __init__(self, analyzer):
         self.analyzer = analyzer
 
-    def identify_well_clusters(self, distance_type="combined", cluster_height=2):
+    def identify_well_clusters(self, distance_type="combined", cluster_height=5):
         """
         Identify natural clusters of wells.
 

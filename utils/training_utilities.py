@@ -172,9 +172,9 @@ def train_model_with_validation_split(
         device = torch.device("cpu")
     model.to(device)
 
-    # Mixed precision training (CUDA only)
-    use_amp = torch.cuda.is_available()
-    scaler = torch.amp.GradScaler("cuda") if use_amp else None
+    # Mixed precision training (CUDA/MPS)
+    use_amp = torch.cuda.is_available() or torch.backends.mps.is_available()
+    scaler = torch.amp.GradScaler(device.type) if use_amp else None
 
     # Split training data for validation
     train_data = list(train_loader.dataset)
@@ -208,15 +208,15 @@ def train_model_with_validation_split(
             features, targets = features.to(device), targets.to(device)
             optimizer.zero_grad()
 
-            # Mixed precision foward pass
             if use_amp:
-                # `scaler` is guaranteed to be set when `use_amp` is True.
                 assert scaler is not None
-                with torch.amp.autocast("cuda"):
+                with torch.amp.autocast(device.type):
                     outputs = model(features)
                     loss = criterion(outputs, targets)
                 assert isinstance(loss, torch.Tensor)
                 scaler.scale(loss).backward()
+                scaler.unscale_(optimizer)
+                clip_grad_norm_(model.parameters(), max_norm=1.0)
                 scaler.step(optimizer)
                 scaler.update()
             else:
@@ -236,15 +236,16 @@ def train_model_with_validation_split(
         train_metrics = calculate_metrics(epoch_train_predictions, epoch_train_targets)
         history["train_r2"].append(train_metrics["R2"])
 
-        # Validation
+        # Validation — collect predictions in the same pass as val loss
         model.eval()
         _set_dataset_training_mode(train_loader_split.dataset, training=False)
         total_val_loss = 0.0
+        val_predictions, val_targets = [], []
         with torch.no_grad():
             for features, targets in val_loader:
                 features, targets = features.to(device), targets.to(device)
                 if use_amp:
-                    with torch.amp.autocast("cuda"):
+                    with torch.amp.autocast(device.type):
                         outputs = model(features)
                         val_loss = criterion(outputs, targets)
                         assert isinstance(val_loss, torch.Tensor)
@@ -253,13 +254,11 @@ def train_model_with_validation_split(
                     val_loss = criterion(outputs, targets)
                     assert isinstance(val_loss, torch.Tensor)
                 total_val_loss += val_loss.item()
+                val_predictions.extend(outputs.cpu().numpy().flatten())
+                val_targets.extend(targets.cpu().numpy().flatten())
         avg_val_loss = total_val_loss / len(val_loader)
         history["val_loss"].append(avg_val_loss)
 
-        # Calculate validation metrics
-        val_predictions, val_targets = get_predictions_and_targets(
-            model, val_loader, device
-        )
         val_metrics = calculate_metrics(val_predictions, val_targets)
         history["val_r2"].append(val_metrics["R2"])
 
@@ -307,26 +306,25 @@ def evaluate_model(model, test_loader, criterion):
     model.to(device)
     model.eval()
 
-    use_amp = torch.cuda.is_available()
+    use_amp = torch.cuda.is_available() or torch.backends.mps.is_available()
 
-    total_test_loss = 0
+    total_test_loss = 0.0
+    test_predictions, test_targets = [], []
     with torch.no_grad():
         for features, targets in test_loader:
             features, targets = features.to(device), targets.to(device)
             if use_amp:
-                with torch.cuda.amp.autocast():
+                with torch.amp.autocast(device.type):
                     outputs = model(features)
                     loss = criterion(outputs, targets)
             else:
                 outputs = model(features)
                 loss = criterion(outputs, targets)
             total_test_loss += loss.item()
+            test_predictions.extend(outputs.cpu().numpy().flatten())
+            test_targets.extend(targets.cpu().numpy().flatten())
     avg_test_loss = total_test_loss / len(test_loader)
 
-    # Calculate metrics
-    test_predictions, test_targets = get_predictions_and_targets(
-        model, test_loader, device
-    )
     test_metrics = calculate_metrics(test_predictions, test_targets)
     test_metrics["loss"] = avg_test_loss
 
