@@ -8,7 +8,7 @@ import torch
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from torch.nn.utils import clip_grad_norm_
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 
 
 def set_deterministic(seed: int = 42):
@@ -162,6 +162,7 @@ def train_model_with_validation_split(
     num_epochs,
     patience,
     val_split=0.3,
+    split_seed=42,
     verbose=True,
 ):
     if torch.cuda.is_available():
@@ -176,15 +177,24 @@ def train_model_with_validation_split(
     use_amp = torch.cuda.is_available() or torch.backends.mps.is_available()
     scaler = torch.amp.GradScaler(device.type) if use_amp else None
 
-    # Split training data for validation
-    train_data = list(train_loader.dataset)
-    val_size = int(len(train_data) * val_split)
-    train_size = len(train_data) - val_size
+    # Split training data for validation (random, deterministic distribution)
+    dataset_size = len(train_loader.dataset)
+    if dataset_size < 2:
+        raise ValueError(
+            "Validation split requires at least 2 samples in the training dataset."
+        )
 
-    train_subset = torch.utils.data.Subset(train_loader.dataset, range(train_size))
-    val_subset = torch.utils.data.Subset(
-        train_loader.dataset, range(train_size, len(train_data))
-    )
+    val_size = int(dataset_size * val_split)
+    val_size = min(max(val_size, 1), dataset_size - 1)
+    train_size = dataset_size - val_size
+
+    split_generator = torch.Generator().manual_seed(split_seed)
+    shuffled_indices = torch.randperm(dataset_size, generator=split_generator).tolist()
+    val_indices = shuffled_indices[:val_size]
+    train_indices = shuffled_indices[val_size:]
+
+    train_subset = Subset(train_loader.dataset, train_indices)
+    val_subset = Subset(train_loader.dataset, val_indices)
 
     train_loader_split = DataLoader(
         train_subset, batch_size=train_loader.batch_size, shuffle=True
