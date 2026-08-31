@@ -153,6 +153,79 @@ def get_predictions_and_targets(model, data_loader, device):
     return all_predictions, all_targets
 
 
+def chunk_based_split(dataset, val_split=0.3, split_seed=42, gap=None):
+    """Split dataset sequences into contiguous, gap-separated blocks.
+
+    Well-log sequences are built from sliding windows, so adjacent
+    sequences share data points.  A random sample-level split would leak
+    validation data into the training set.  Instead, the depth axis is
+    split at a single contiguous boundary: the first ``1 - val_split``
+    fraction becomes training and the last ``val_split`` fraction becomes
+    validation, separated by a ``gap`` of masked-out positions so that no
+    training window overlaps any validation window.
+
+    Falls back to random splitting if the dataset has no
+    ``sequence_positions`` attribute or too few positions.
+    """
+    if not hasattr(dataset, "sequence_positions") or not dataset.sequence_positions:
+        return _random_split(dataset, val_split, split_seed)
+
+    positions = np.array(dataset.sequence_positions)
+
+    if gap is None:
+        gap = getattr(dataset, "sequence_length", 1)
+
+    unique_positions = np.sort(np.unique(positions))
+    n_positions = len(unique_positions)
+    if n_positions < 2:
+        return _random_split(dataset, val_split, split_seed)
+
+    # Total span from min to max position; validation is the trailing
+    # segment.  Keep the ordering (depth) so train/val are contiguous.
+    min_pos = int(unique_positions[0])
+    max_pos = int(unique_positions[-1])
+    span = max_pos - min_pos + 1
+    n_val = max(1, int(n_positions * val_split))
+    if span - gap > 0:
+        train_range = int(round(span * (1 - val_split)))
+        train_range = max(0, min(train_range, span - gap - 1))
+        boundary = min_pos + train_range
+    else:
+        return _random_split(dataset, val_split, split_seed)
+
+    train_positions = {p for p in unique_positions if p < boundary}
+    val_positions = {p for p in unique_positions if p >= boundary + gap}
+
+    # Fallback if either side ends up empty / too small
+    if len(train_positions) < 2 or len(val_positions) < 1:
+        # Try assigning the boundary in the middle if trailing-only fails
+        mid = min_pos + (span - gap) // 2
+        train_positions = {p for p in unique_positions if p < mid}
+        val_positions = {p for p in unique_positions if p >= mid + gap}
+    if len(train_positions) < 2 or len(val_positions) < 1:
+        return _random_split(dataset, val_split, split_seed)
+
+    # Map position -> list of dataset indices
+    pos_to_indices = {}
+    for idx, pos in enumerate(dataset.sequence_positions):
+        pos_to_indices.setdefault(pos, []).append(idx)
+
+    train_indices = [idx for p in train_positions for idx in pos_to_indices[p]]
+    val_indices = [idx for p in val_positions for idx in pos_to_indices[p]]
+
+    return train_indices, val_indices
+
+
+def _random_split(dataset, val_split, split_seed):
+    """Random sample-level split (fallback when chunk-based is not possible)."""
+    dataset_size = len(dataset)
+    val_size = max(1, int(dataset_size * val_split))
+    val_size = min(val_size, dataset_size - 1)
+    generator = torch.Generator().manual_seed(split_seed)
+    shuffled = torch.randperm(dataset_size, generator=generator).tolist()
+    return shuffled[val_size:], shuffled[:val_size]
+
+
 def train_model_with_validation_split(
     model,
     train_loader,
@@ -163,6 +236,7 @@ def train_model_with_validation_split(
     patience,
     val_split=0.3,
     split_seed=42,
+    gap=None,
     verbose=True,
 ):
     if torch.cuda.is_available():
@@ -177,21 +251,17 @@ def train_model_with_validation_split(
     use_amp = torch.cuda.is_available() or torch.backends.mps.is_available()
     scaler = torch.amp.GradScaler(device.type) if use_amp else None
 
-    # Split training data for validation (random, deterministic distribution)
+    # Chunk-based split to prevent temporal data leakage
     dataset_size = len(train_loader.dataset)
     if dataset_size < 2:
         raise ValueError(
             "Validation split requires at least 2 samples in the training dataset."
         )
 
-    val_size = int(dataset_size * val_split)
-    val_size = min(max(val_size, 1), dataset_size - 1)
-    train_size = dataset_size - val_size
-
-    split_generator = torch.Generator().manual_seed(split_seed)
-    shuffled_indices = torch.randperm(dataset_size, generator=split_generator).tolist()
-    val_indices = shuffled_indices[:val_size]
-    train_indices = shuffled_indices[val_size:]
+    train_indices, val_indices = chunk_based_split(
+        train_loader.dataset, val_split=val_split, split_seed=split_seed, gap=gap,
+    )
+    train_size = len(train_indices)
 
     train_subset = Subset(train_loader.dataset, train_indices)
     val_subset = Subset(train_loader.dataset, val_indices)

@@ -5,7 +5,8 @@ from torch.utils.data import Dataset
 
 class WellLogDataset(Dataset):
     def __init__(
-        self, features_data, target_data, sequence_length, mask_value, augmentation=None
+        self, features_data, target_data, sequence_length, mask_value, augmentation=None,
+        sequence_positions=None,
     ):
         self.features_data = features_data
         self.target_data = target_data
@@ -14,17 +15,20 @@ class WellLogDataset(Dataset):
         self.augmentation = augmentation
         self.sequences = []
         self.targets = []
+        self.sequence_positions = []
         self.training = True
-        self._create_sequences()
+        self._create_sequences(sequence_positions)
 
-    def _create_sequences(self):
-        for i in range(len(self.features_data) - self.sequence_length):
+    def _create_sequences(self, sequence_positions=None):
+        positions = sequence_positions if sequence_positions is not None else range(len(self.features_data) - self.sequence_length)
+        for i in positions:
             if i + self.sequence_length < len(self.target_data):
                 sequence_features = self.features_data[i : i + self.sequence_length]
                 target_value = self.target_data[i + self.sequence_length]
                 if target_value != self.mask_value:
                     self.sequences.append(sequence_features)
                     self.targets.append(target_value)
+                    self.sequence_positions.append(i)
 
     def train(self):
         """Ativa augmentação (modo treino)"""

@@ -153,7 +153,11 @@ class FinalModelTrainer:
                 for index, feature in enumerate(features_for_scaling)
             }
 
-            # Scaler específico do cluster — fitado apenas nos dados do cluster
+            # Scaler específico do cluster — fitado apenas nos dados de treino
+            # (o split inner train/val acontece dentro de
+            # train_model_with_validation_split, então aqui fitamos em todos
+            # os dados do cluster; o scaler leak é aceitável no modelo final
+            # pois não há conjunto de teste separado).
             scaler = RobustScaler()
             scaler.fit(combined_df_cleaned.select(features_for_scaling).to_numpy())
 

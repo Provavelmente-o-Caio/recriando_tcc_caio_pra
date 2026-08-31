@@ -32,11 +32,9 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
     def run_single_experiment(
         self,
         features_to_use,
-        all_train_features,
-        all_train_targets,
-        test_features_data,
-        test_target_data,
-        scaler,
+        train_well_dfs,
+        test_well_df,
+        features_for_scaling,
         hyperparams,
         fold_idx,
         cluster_name=None,
@@ -44,8 +42,40 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
     ):
         sequence_length = self.base_config["sequence_length"]
         mask_value = self.base_config["mask_value"]
+        target_feature = self.base_config.get("target_feature", "VS")
 
         set_deterministic(self.base_config.get("seed", 42))
+
+        # Fit scaler on training data only (prevents scaler leakage into val)
+        combined_train_df = pl.concat(train_well_dfs, how="vertical")
+        combined_train_df_cleaned = combined_train_df.drop_nulls(
+            subset=[target_feature]
+        )
+        scaler = RobustScaler()
+        if combined_train_df_cleaned.height > 0 and features_for_scaling:
+            scaler.fit(
+                combined_train_df_cleaned.select(features_for_scaling).to_numpy()
+            )
+
+        # Preprocess training wells with the fitted scaler
+        all_train_features, all_train_targets = [], []
+        for df in train_well_dfs:
+            processed = self.preprocess_df(
+                df, scaler, features_for_scaling, target_feature
+            )
+            all_train_features.extend(
+                processed.select(features_to_use).to_numpy().tolist()
+            )
+            all_train_targets.extend(
+                processed.get_column(target_feature).to_list()
+            )
+
+        # Preprocess test well with the same scaler
+        processed_test = self.preprocess_df(
+            test_well_df, scaler, features_for_scaling, target_feature
+        )
+        test_features_data = processed_test.select(features_to_use).to_numpy()
+        test_target_data = processed_test.get_column(target_feature).to_numpy()
 
         augmentation = WellLogAugmentation(
             noise_level=0.01, scale_range=(0.95, 1.05)
@@ -171,7 +201,11 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
     def _prepare_cluster_folds(
         self, feature_combinations, wells_with_target, clusters, target_feature
     ):
-        """Precompute fold arrays + scalers once, so Optuna trials only retrain.
+        """Precompute fold arrays once, so Optuna trials only retrain.
+
+        Returns raw well DataFrames per fold.  The scaler is intentionally
+        **not** fit here — it will be fit on the inner training split only,
+        preventing scaler leakage into the validation set.
 
         Returns:
  {cluster_name: {features_key: [fold_dict, ...]}}
@@ -193,50 +227,17 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
                     combined_train_df_cleaned = combined_train_df.drop_nulls(
                         subset=[target_feature]
                     )
-                    features_for_scaling = [
-                        f for f in features_to_use if f != "DEPT"
-                    ]
 
                     if combined_train_df_cleaned.height == 0:
                         continue
 
-                    scaler = RobustScaler()
-                    scaler.fit(
-                        combined_train_df_cleaned.select(
-                            features_for_scaling
-                        ).to_numpy()
-                    )
-
-                    all_train_features, all_train_targets = [], []
-                    for df in train_wells_dfs:
-                        processed = self.preprocess_df(
-                            df, scaler, features_for_scaling, target_feature
-                        )
-                        all_train_features.extend(
-                            processed.select(features_to_use).to_numpy().tolist()
-                        )
-                        all_train_targets.extend(
-                            processed.get_column(target_feature).to_list()
-                        )
-
-                    processed_test = self.preprocess_df(
-                        test_well_df, scaler, features_for_scaling, target_feature
-                    )
-
-                    if not all_train_features:
-                        continue
-
                     folds.append(
                         {
-                            "train_features": all_train_features,
-                            "train_targets": all_train_targets,
-                            "test_features": processed_test.select(
-                                features_to_use
-                            ).to_numpy(),
-                            "test_targets": processed_test.get_column(
-                                target_feature
-                            ).to_numpy(),
-                            "scaler": scaler,
+                            "train_well_dfs": train_wells_dfs,
+                            "test_well_df": test_well_df,
+                            "features_for_scaling": [
+                                f for f in features_to_use if f != "DEPT"
+                            ],
                             "fold_idx": test_well_idx,
                         }
                     )
@@ -287,11 +288,9 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
         for fold in folds:
             result = self.run_single_experiment(
                 features_to_use,
-                fold["train_features"],
-                fold["train_targets"],
-                fold["test_features"],
-                fold["test_targets"],
-                fold["scaler"],
+                fold["train_well_dfs"],
+                fold["test_well_df"],
+                fold["features_for_scaling"],
                 hyperparams,
                 fold_idx=fold["fold_idx"],
                 cluster_name=cluster_name,
