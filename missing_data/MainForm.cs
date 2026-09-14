@@ -513,26 +513,26 @@ namespace missing_data
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 2
+                RowCount = 3,
+                Padding = new Padding(0)
             };
 
-            container.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            container.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            container.RowStyles.Add(new RowStyle(SizeType.Absolute, 12));
+            container.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            container.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            container.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
 
             trainingButton = new Button
             {
                 Text = "Run Training",
                 Height = 36,
-                Dock = DockStyle.Bottom,
-                Width = 140
+                Dock = DockStyle.Fill
             };
 
             cancelTrainingButton = new Button
             {
                 Text = "Cancel",
                 Height = 36,
-                Width = 100,
+                Dock = DockStyle.Fill,
                 Enabled = false
             };
 
@@ -876,6 +876,8 @@ namespace missing_data
                 trainingButton.Enabled = false;
                 cancelTrainingButton.Enabled = true;
                 trainingProgressBar.Visible = true;
+                trainingProgressBar.BringToFront();
+                trainingProgressBar.Refresh();
                 trainingCancellationSource = new CancellationTokenSource();
                 CancellationToken cancellationToken = trainingCancellationSource.Token;
                 var selectedConfiguration = getCurveMapping();

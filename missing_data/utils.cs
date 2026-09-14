@@ -97,7 +97,7 @@ namespace missing_data
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = false
+                CreateNoWindow = true
             };
 
             return await RunProcessAsync(psi, CancellationToken.None, null);
@@ -138,7 +138,7 @@ namespace missing_data
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = false
+                CreateNoWindow = true
             };
 
             return await RunProcessAsync(psi, cancellationToken, outputCallback);
@@ -177,7 +177,7 @@ namespace missing_data
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = false
+                CreateNoWindow = true
             };
 
             return await RunProcessAsync(psi, CancellationToken.None, null);
