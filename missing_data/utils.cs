@@ -53,23 +53,7 @@ namespace missing_data
                 CreateNoWindow = true
             };
 
-            using (var process = new Process())
-            {
-                process.StartInfo = psi;
-                process.Start();
-
-                string stdout = await process.StandardOutput.ReadToEndAsync();
-                string stderr = await process.StandardError.ReadToEndAsync();
-
-                await Task.Run(() => process.WaitForExit());
-
-                return new PythonProcessResult
-                {
-                    ExitCode = process.ExitCode,
-                    Stdout = stdout,
-                    Stderr = stderr
-                };
-            }
+            return await RunProcessAsync(psi);
         }
         public static async Task<PythonProcessResult> RunPythonTrainingAsync(string pythonExe, string runnerPath, string inputPath, string outputPath, string clustersPath)
         {
@@ -105,23 +89,7 @@ namespace missing_data
                 CreateNoWindow = false
             };
 
-            using (var process = new Process())
-            {
-                process.StartInfo = psi;
-                process.Start();
-
-                string stdout = await process.StandardOutput.ReadToEndAsync();
-                string stderr = await process.StandardError.ReadToEndAsync();
-
-                await Task.Run(() => process.WaitForExit());
-
-                return new PythonProcessResult
-                {
-                    ExitCode = process.ExitCode,
-                    Stdout = stdout,
-                    Stderr = stderr
-                };
-            }
+            return await RunProcessAsync(psi);
         }
 
         public static async Task<PythonProcessResult> RunPythonOptunaTrainingAsync(
@@ -160,23 +128,7 @@ namespace missing_data
                 CreateNoWindow = false
             };
 
-            using (var process = new Process())
-            {
-                process.StartInfo = psi;
-                process.Start();
-
-                string stdout = await process.StandardOutput.ReadToEndAsync();
-                string stderr = await process.StandardError.ReadToEndAsync();
-
-                await Task.Run(() => process.WaitForExit());
-
-                return new PythonProcessResult
-                {
-                    ExitCode = process.ExitCode,
-                    Stdout = stdout,
-                    Stderr = stderr
-                };
-            }
+            return await RunProcessAsync(psi);
         }
 
 
@@ -215,21 +167,27 @@ namespace missing_data
                 CreateNoWindow = false
             };
 
+            return await RunProcessAsync(psi);
+        }
+
+        private static async Task<PythonProcessResult> RunProcessAsync(ProcessStartInfo startInfo)
+        {
             using (var process = new Process())
             {
-                process.StartInfo = psi;
+                process.StartInfo = startInfo;
                 process.Start();
 
-                string stdout = await process.StandardOutput.ReadToEndAsync();
-                string stderr = await process.StandardError.ReadToEndAsync();
+                Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+                Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+                Task waitForExitTask = Task.Run(() => process.WaitForExit());
 
-                await Task.Run(() => process.WaitForExit());
+                await Task.WhenAll(stdoutTask, stderrTask, waitForExitTask);
 
                 return new PythonProcessResult
                 {
                     ExitCode = process.ExitCode,
-                    Stdout = stdout,
-                    Stderr = stderr
+                    Stdout = stdoutTask.Result,
+                    Stderr = stderrTask.Result
                 };
             }
         }
