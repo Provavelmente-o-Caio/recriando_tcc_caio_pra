@@ -1,7 +1,9 @@
 ﻿using Newtonsoft.Json;
+using System.ComponentModel;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace missing_data
@@ -17,7 +19,13 @@ namespace missing_data
 
     public class Utils
     {
-        public static async Task<PythonProcessResult> RunPythonAnalysisAsync(string pythonExe, string runnerPath, string mode, string inputPath, string outputPath)
+        public static async Task<PythonProcessResult> RunPythonAnalysisAsync(
+            string pythonExe,
+            string runnerPath,
+            string mode,
+            string inputPath,
+            string outputPath,
+            CancellationToken cancellationToken = default(CancellationToken))
         {
             if (!File.Exists(pythonExe))
             {
@@ -53,7 +61,7 @@ namespace missing_data
                 CreateNoWindow = true
             };
 
-            return await RunProcessAsync(psi);
+            return await RunProcessAsync(psi, cancellationToken);
         }
         public static async Task<PythonProcessResult> RunPythonTrainingAsync(string pythonExe, string runnerPath, string inputPath, string outputPath, string clustersPath)
         {
@@ -89,7 +97,7 @@ namespace missing_data
                 CreateNoWindow = false
             };
 
-            return await RunProcessAsync(psi);
+            return await RunProcessAsync(psi, CancellationToken.None);
         }
 
         public static async Task<PythonProcessResult> RunPythonOptunaTrainingAsync(
@@ -99,7 +107,8 @@ namespace missing_data
             string clustersPath,
             string outputPath,
             int trials,
-            int jobs)
+            int jobs,
+            CancellationToken cancellationToken)
         {
             if (!File.Exists(pythonExe))
                 throw new FileNotFoundException("Python executable not found.", pythonExe);
@@ -128,7 +137,7 @@ namespace missing_data
                 CreateNoWindow = false
             };
 
-            return await RunProcessAsync(psi);
+            return await RunProcessAsync(psi, cancellationToken);
         }
 
 
@@ -167,10 +176,12 @@ namespace missing_data
                 CreateNoWindow = false
             };
 
-            return await RunProcessAsync(psi);
+            return await RunProcessAsync(psi, CancellationToken.None);
         }
 
-        private static async Task<PythonProcessResult> RunProcessAsync(ProcessStartInfo startInfo)
+        private static async Task<PythonProcessResult> RunProcessAsync(
+            ProcessStartInfo startInfo,
+            CancellationToken cancellationToken)
         {
             using (var process = new Process())
             {
@@ -180,8 +191,12 @@ namespace missing_data
                 Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
                 Task<string> stderrTask = process.StandardError.ReadToEndAsync();
                 Task waitForExitTask = Task.Run(() => process.WaitForExit());
+                using (cancellationToken.Register(() => TerminateProcessTree(process)))
+                {
+                    await Task.WhenAll(stdoutTask, stderrTask, waitForExitTask);
+                }
 
-                await Task.WhenAll(stdoutTask, stderrTask, waitForExitTask);
+                cancellationToken.ThrowIfCancellationRequested();
 
                 return new PythonProcessResult
                 {
@@ -189,6 +204,38 @@ namespace missing_data
                     Stdout = stdoutTask.Result,
                     Stderr = stderrTask.Result
                 };
+            }
+        }
+
+        private static void TerminateProcessTree(Process process)
+        {
+            if (process.HasExited)
+                return;
+
+            try
+            {
+                using (var terminator = new Process())
+                {
+                    terminator.StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "taskkill.exe",
+                        Arguments = $"/PID {process.Id} /T /F",
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+                    terminator.Start();
+                    terminator.WaitForExit();
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                if (!process.HasExited)
+                    process.Kill();
+            }
+            catch (Win32Exception)
+            {
+                if (!process.HasExited)
+                    process.Kill();
             }
         }
     }

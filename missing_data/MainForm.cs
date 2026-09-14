@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -63,6 +64,8 @@ namespace missing_data
         private TextBox trainingStatusTextBox;
         private Button predictionButton;
         private Button trainingButton;
+        private Button cancelTrainingButton;
+        private CancellationTokenSource trainingCancellationSource;
         private ComboBox vsComboBox;
         private ComboBox vpComboBox;
         private ComboBox rhoComboBox;
@@ -520,12 +523,28 @@ namespace missing_data
             {
                 Text = "Run Training",
                 Height = 36,
-                Dock = DockStyle.Bottom
+                Dock = DockStyle.Bottom,
+                Width = 140
+            };
+
+            cancelTrainingButton = new Button
+            {
+                Text = "Cancel",
+                Height = 36,
+                Width = 100,
+                Enabled = false
             };
 
             trainingButton.Click += async (sender, e) => await RunButtonOptunaTraining_Click(wellsListBoxTraining);
+            cancelTrainingButton.Click += (sender, e) =>
+            {
+                trainingCancellationSource?.Cancel();
+                AppendTrainingStatus("Cancellation requested...");
+                cancelTrainingButton.Enabled = false;
+            };
 
             container.Controls.Add(trainingButton, 0, 0);
+            container.Controls.Add(cancelTrainingButton, 0, 1);
 
             group.Controls.Add(container);
 
@@ -846,6 +865,9 @@ namespace missing_data
 
                 var selectedWells = GetSelectedWells(clb);
                 trainingButton.Enabled = false;
+                cancelTrainingButton.Enabled = true;
+                trainingCancellationSource = new CancellationTokenSource();
+                CancellationToken cancellationToken = trainingCancellationSource.Token;
                 var selectedConfiguration = getCurveMapping();
                 var pythonConfiguration = GetPythonConfiguration();
                 string appData = Environment.GetFolderPath(
@@ -879,7 +901,8 @@ namespace missing_data
                     runnerPath,
                     "analyze",
                     inputPath,
-                    analysisOutputPath);
+                    analysisOutputPath,
+                    cancellationToken);
 
                 if (!string.IsNullOrWhiteSpace(analysisResult.Stdout))
                     AppendTrainingStatus(analysisResult.Stdout);
@@ -943,7 +966,8 @@ namespace missing_data
                     clustersPath,
                     outputPath,
                     trials: 30,
-                    jobs: processorCount);
+                    jobs: processorCount,
+                    cancellationToken: cancellationToken);
 
                 if (!string.IsNullOrWhiteSpace(result.Stdout))
                     AppendTrainingStatus(result.Stdout);
@@ -967,6 +991,10 @@ namespace missing_data
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
             }
+            catch (OperationCanceledException)
+            {
+                AppendTrainingStatus("Optuna training cancelled.");
+            }
             catch (Exception ex)
             {
                 AppendTrainingStatus("ERROR: " + ex.Message);
@@ -979,6 +1007,9 @@ namespace missing_data
             finally
             {
                 trainingButton.Enabled = true;
+                cancelTrainingButton.Enabled = false;
+                trainingCancellationSource?.Dispose();
+                trainingCancellationSource = null;
             }
         }
 
