@@ -7,28 +7,35 @@ class WellLogDataset(Dataset):
     def __init__(
         self, features_data, target_data, sequence_length, mask_value, augmentation=None,
         sequence_positions=None,
+        well_segments=None,
     ):
-        self.features_data = features_data
-        self.target_data = target_data
+        if well_segments is None:
+            well_segments = [(features_data, target_data)]
         self.sequence_length = sequence_length
         self.mask_value = mask_value
         self.augmentation = augmentation
         self.sequences = []
         self.targets = []
         self.sequence_positions = []
+        self.sequence_well_ids = []
         self.training = True
-        self._create_sequences(sequence_positions)
+        for well_id, (well_features, well_targets) in enumerate(well_segments):
+            positions = sequence_positions if sequence_positions is not None else None
+            self._create_sequences(well_features, well_targets, positions, well_id)
 
-    def _create_sequences(self, sequence_positions=None):
-        positions = sequence_positions if sequence_positions is not None else range(len(self.features_data) - self.sequence_length)
+    def _create_sequences(self, features_data, target_data, sequence_positions, well_id):
+        positions = sequence_positions if sequence_positions is not None else range(
+            len(features_data) - self.sequence_length
+        )
         for i in positions:
-            if i + self.sequence_length < len(self.target_data):
-                sequence_features = self.features_data[i : i + self.sequence_length]
-                target_value = self.target_data[i + self.sequence_length]
+            if i + self.sequence_length < len(target_data):
+                sequence_features = features_data[i : i + self.sequence_length]
+                target_value = target_data[i + self.sequence_length]
                 if target_value != self.mask_value:
                     self.sequences.append(sequence_features)
                     self.targets.append(target_value)
                     self.sequence_positions.append(i)
+                    self.sequence_well_ids.append(well_id)
 
     def train(self):
         """Ativa augmentação (modo treino)"""

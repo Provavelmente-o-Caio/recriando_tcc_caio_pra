@@ -158,11 +158,10 @@ def chunk_based_split(dataset, val_split=0.3, split_seed=42, gap=None):
 
     Well-log sequences are built from sliding windows, so adjacent
     sequences share data points.  A random sample-level split would leak
-    validation data into the training set.  Instead, the depth axis is
-    split at a single contiguous boundary: the first ``1 - val_split``
-    fraction becomes training and the last ``val_split`` fraction becomes
-    validation, separated by a ``gap`` of masked-out positions so that no
-    training window overlaps any validation window.
+    validation data into the training set.      Instead, each well's depth axis is split at a contiguous boundary: the
+    first ``1 - val_split`` fraction becomes training and the last
+    ``val_split`` fraction becomes validation, separated by a ``gap`` of
+    positions so that no training window overlaps a validation window.
 
     Falls back to random splitting if the dataset has no
     ``sequence_positions`` attribute or too few positions.
@@ -170,48 +169,41 @@ def chunk_based_split(dataset, val_split=0.3, split_seed=42, gap=None):
     if not hasattr(dataset, "sequence_positions") or not dataset.sequence_positions:
         return _random_split(dataset, val_split, split_seed)
 
-    positions = np.array(dataset.sequence_positions)
-
     if gap is None:
         gap = getattr(dataset, "sequence_length", 1)
 
-    unique_positions = np.sort(np.unique(positions))
-    n_positions = len(unique_positions)
-    if n_positions < 2:
-        return _random_split(dataset, val_split, split_seed)
+    train_indices, val_indices = [], []
+    well_ids = getattr(dataset, "sequence_well_ids", [0] * len(dataset))
+    for well_id in sorted(set(well_ids)):
+        well_indices = [idx for idx, value in enumerate(well_ids) if value == well_id]
+        positions = np.array([dataset.sequence_positions[idx] for idx in well_indices])
+        unique_positions = np.sort(np.unique(positions))
+        if len(unique_positions) < 2:
+            return _random_split(dataset, val_split, split_seed)
 
-    # Total span from min to max position; validation is the trailing
-    # segment.  Keep the ordering (depth) so train/val are contiguous.
-    min_pos = int(unique_positions[0])
-    max_pos = int(unique_positions[-1])
-    span = max_pos - min_pos + 1
-    n_val = max(1, int(n_positions * val_split))
-    if span - gap > 0:
+        min_pos = int(unique_positions[0])
+        max_pos = int(unique_positions[-1])
+        span = max_pos - min_pos + 1
+        if span - gap <= 0:
+            return _random_split(dataset, val_split, split_seed)
+
         train_range = int(round(span * (1 - val_split)))
-        train_range = max(0, min(train_range, span - gap - 1))
+        train_range = max(1, min(train_range, span - gap - 1))
         boundary = min_pos + train_range
-    else:
+        train_positions = {p for p in unique_positions if p < boundary}
+        val_positions = {p for p in unique_positions if p >= boundary + gap}
+        if len(train_positions) < 1 or len(val_positions) < 1:
+            return _random_split(dataset, val_split, split_seed)
+
+        train_indices.extend(
+            idx for idx in well_indices if dataset.sequence_positions[idx] in train_positions
+        )
+        val_indices.extend(
+            idx for idx in well_indices if dataset.sequence_positions[idx] in val_positions
+        )
+
+    if len(train_indices) < 2 or not val_indices:
         return _random_split(dataset, val_split, split_seed)
-
-    train_positions = {p for p in unique_positions if p < boundary}
-    val_positions = {p for p in unique_positions if p >= boundary + gap}
-
-    # Fallback if either side ends up empty / too small
-    if len(train_positions) < 2 or len(val_positions) < 1:
-        # Try assigning the boundary in the middle if trailing-only fails
-        mid = min_pos + (span - gap) // 2
-        train_positions = {p for p in unique_positions if p < mid}
-        val_positions = {p for p in unique_positions if p >= mid + gap}
-    if len(train_positions) < 2 or len(val_positions) < 1:
-        return _random_split(dataset, val_split, split_seed)
-
-    # Map position -> list of dataset indices
-    pos_to_indices = {}
-    for idx, pos in enumerate(dataset.sequence_positions):
-        pos_to_indices.setdefault(pos, []).append(idx)
-
-    train_indices = [idx for p in train_positions for idx in pos_to_indices[p]]
-    val_indices = [idx for p in val_positions for idx in pos_to_indices[p]]
 
     return train_indices, val_indices
 

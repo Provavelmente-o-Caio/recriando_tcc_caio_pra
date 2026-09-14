@@ -164,9 +164,16 @@ class FinalModelTrainer:
             # Preparar features e targets
             all_train_features = []
             all_train_targets = []
+            well_segments = []
             for df in cluster_wells_dfs:
                 processed_df = self.preprocess_df(
                     df, scaler, features_for_scaling, target_feature
+                )
+                well_segments.append(
+                    (
+                        processed_df.select(features_to_use).to_numpy(),
+                        processed_df.get_column(target_feature).to_numpy(),
+                    )
                 )
                 all_train_features.extend(
                     processed_df.select(features_to_use).to_numpy().tolist()
@@ -182,11 +189,12 @@ class FinalModelTrainer:
                 noise_level=0.01, scale_range=(0.95, 1.05)
             )
             train_dataset = WellLogDataset(
-                all_train_features,
-                all_train_targets,
+                None,
+                None,
                 sequence_length,
                 mask_value,
                 augmentation=augmentation,
+                well_segments=well_segments,
             )
             train_loader = DataLoader(
                 train_dataset,

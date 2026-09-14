@@ -95,6 +95,7 @@ class CrossFoldHyperparameterExperiment:
         hyperparams,
         fold_idx,
         cluster_name=None,
+        well_segments=None,
     ):
         sequence_length = self.base_config["sequence_length"]
         mask_value = self.base_config["mask_value"]
@@ -106,11 +107,12 @@ class CrossFoldHyperparameterExperiment:
 
         # Create datasets
         train_dataset = WellLogDataset(
-            all_train_features,
-            all_train_targets,
+            None,
+            None,
             sequence_length,
             mask_value,
             augmentation=augmentation,
+            well_segments=well_segments or [(all_train_features, all_train_targets)],
         )
         test_dataset = WellLogDataset(
             test_features_data,
@@ -530,6 +532,13 @@ class CrossFoldHyperparameterExperiment:
                                 hyperparam_config,
                                 fold_idx=test_well_idx,
                                 cluster_name=cluster_name,
+                                well_segments=[
+                                    (
+                                        df.select(features_to_use).to_numpy().tolist(),
+                                        df.get_column(target_feature).to_list(),
+                                    )
+                                    for df in processed_train_dfs
+                                ],
                             )
 
                             experiment_key = (

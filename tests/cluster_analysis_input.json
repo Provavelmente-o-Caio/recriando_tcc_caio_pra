@@ -316970,8 +316970,8 @@
   "pythonConfiguration": {
     "SequenceLength": 15,
     "MaskValue": -1.0,
-    "NumEpochs": 500,
-    "Patience": 150,
+    "NumEpochs": 50,
+    "Patience": 15,
     "TargetFeature": "VS"
   }
 }

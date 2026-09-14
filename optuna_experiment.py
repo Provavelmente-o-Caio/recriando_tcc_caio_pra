@@ -59,9 +59,16 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
 
         # Preprocess training wells with the fitted scaler
         all_train_features, all_train_targets = [], []
+        well_segments = []
         for df in train_well_dfs:
             processed = self.preprocess_df(
                 df, scaler, features_for_scaling, target_feature
+            )
+            well_segments.append(
+                (
+                    processed.select(features_to_use).to_numpy(),
+                    processed.get_column(target_feature).to_numpy(),
+                )
             )
             all_train_features.extend(
                 processed.select(features_to_use).to_numpy().tolist()
@@ -81,11 +88,12 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
             noise_level=0.01, scale_range=(0.95, 1.05)
         )
         train_dataset = WellLogDataset(
-            all_train_features,
-            all_train_targets,
+            None,
+            None,
             sequence_length,
             mask_value,
             augmentation=augmentation,
+            well_segments=well_segments,
         )
         test_dataset = WellLogDataset(
             test_features_data,
