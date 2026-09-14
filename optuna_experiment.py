@@ -338,9 +338,35 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
         clusters = self.base_config.get(
             "clusters", {"A": list(range(len(wells_with_target)))}
         )
+        valid_clusters = {}
+        for cluster_name, cluster_indices in clusters.items():
+            normalized_indices = sorted(set(int(index) for index in cluster_indices))
+            invalid_indices = [
+                index
+                for index in normalized_indices
+                if index < 0 or index >= len(wells_with_target)
+            ]
+            if invalid_indices:
+                raise ValueError(
+                    f"Cluster '{cluster_name}' contains invalid well indices "
+                    f"{invalid_indices}; {len(wells_with_target)} labeled wells are available."
+                )
+            if len(normalized_indices) < 2:
+                print(
+                    f"Skipping cluster '{cluster_name}': at least two labeled wells "
+                    "are required for leave-one-well-out validation."
+                )
+                continue
+            valid_clusters[cluster_name] = normalized_indices
+
+        if not valid_clusters:
+            raise ValueError(
+                "No valid clusters remain for Optuna. Each cluster must contain "
+                "at least two selected wells with the target feature."
+            )
 
         fold_data = self._prepare_cluster_folds(
-            feature_combinations, wells_with_target, clusters, target_feature
+            feature_combinations, wells_with_target, valid_clusters, target_feature
         )
 
         storage = f"sqlite:///{os.path.join(self.results_dir, 'optuna.db')}"
@@ -375,6 +401,18 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
                 n_jobs=n_jobs,
                 show_progress_bar=True,
             )
+
+            completed_trials = [
+                trial
+                for trial in study.trials
+                if trial.state == optuna.trial.TrialState.COMPLETE
+            ]
+            if not completed_trials:
+                raise RuntimeError(
+                    f"Optuna study '{study_name}' finished without a completed trial. "
+                    "Check the preceding trial errors and confirm that each selected "
+                    "well has all mapped features and VS values."
+                )
 
             best_trial = study.best_trial
             fold_r2 = best_trial.user_attrs["fold_r2"]
