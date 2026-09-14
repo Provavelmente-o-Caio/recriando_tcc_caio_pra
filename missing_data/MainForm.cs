@@ -824,7 +824,7 @@ namespace missing_data
                 {
                     MessageBox.Show(
                         "Select at least one well to confirm that the Petrel project is ready. "
-                        + "Optuna training uses the five measured-VS Petrobras wells from the configured Python data directory.",
+                        + "Optuna training uses the wells selected in this interface.",
                         "No wells selected",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Warning);
@@ -842,16 +842,20 @@ namespace missing_data
                     "petrel_optuna_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
 
                 runButton.Enabled = false;
-                AppendStatus("Starting Optuna training with all five measured-VS Petrobras wells...");
+                AppendStatus("Starting Optuna training with the interface-selected JSON wells...");
                 AppendStatus("Optuna script: " + optunaScriptPath);
                 AppendStatus("Output directory: " + outputPath);
+                int processorCount = Math.Max(1, Environment.ProcessorCount);
+                AppendStatus("Optuna jobs: " + processorCount);
 
                 var result = await Utils.RunPythonOptunaTrainingAsync(
                     pythonExe,
                     optunaScriptPath,
+                    inputPath,
+                    clustersPath,
                     outputPath,
                     trials: 30,
-                    jobs: 1);
+                    jobs: processorCount);
 
                 if (!string.IsNullOrWhiteSpace(result.Stdout))
                     AppendStatus(result.Stdout);

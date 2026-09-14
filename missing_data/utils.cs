@@ -127,6 +127,8 @@ namespace missing_data
         public static async Task<PythonProcessResult> RunPythonOptunaTrainingAsync(
             string pythonExe,
             string optunaScriptPath,
+            string inputPath,
+            string clustersPath,
             string outputPath,
             int trials,
             int jobs)
@@ -141,7 +143,9 @@ namespace missing_data
 
             var arguments =
                 $"\"{optunaScriptPath}\" " +
-                $"--data-source petrobras " +
+                $"--data-source payload " +
+                $"--input \"{inputPath}\" " +
+                $"--cluster \"{clustersPath}\" " +
                 $"--output \"{outputPath}\" " +
                 $"--trials {trials} " +
                 $"--jobs {jobs}";
