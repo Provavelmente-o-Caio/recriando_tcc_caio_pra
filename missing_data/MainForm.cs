@@ -65,6 +65,7 @@ namespace missing_data
         private Button predictionButton;
         private Button trainingButton;
         private Button cancelTrainingButton;
+        private ProgressBar trainingProgressBar;
         private CancellationTokenSource trainingCancellationSource;
         private ComboBox vsComboBox;
         private ComboBox vpComboBox;
@@ -374,7 +375,7 @@ namespace missing_data
                 Dock = DockStyle.Fill,
                 AutoSize = true,
                 ColumnCount = 3,
-                RowCount = 2
+                RowCount = 3
             };
 
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
@@ -545,6 +546,14 @@ namespace missing_data
 
             container.Controls.Add(trainingButton, 0, 0);
             container.Controls.Add(cancelTrainingButton, 0, 1);
+            trainingProgressBar = new ProgressBar
+            {
+                Style = ProgressBarStyle.Marquee,
+                MarqueeAnimationSpeed = 30,
+                Dock = DockStyle.Fill,
+                Visible = false
+            };
+            container.Controls.Add(trainingProgressBar, 0, 2);
 
             group.Controls.Add(container);
 
@@ -866,6 +875,7 @@ namespace missing_data
                 var selectedWells = GetSelectedWells(clb);
                 trainingButton.Enabled = false;
                 cancelTrainingButton.Enabled = true;
+                trainingProgressBar.Visible = true;
                 trainingCancellationSource = new CancellationTokenSource();
                 CancellationToken cancellationToken = trainingCancellationSource.Token;
                 var selectedConfiguration = getCurveMapping();
@@ -902,12 +912,8 @@ namespace missing_data
                     "analyze",
                     inputPath,
                     analysisOutputPath,
-                    cancellationToken);
-
-                if (!string.IsNullOrWhiteSpace(analysisResult.Stdout))
-                    AppendTrainingStatus(analysisResult.Stdout);
-                if (!string.IsNullOrWhiteSpace(analysisResult.Stderr))
-                    AppendTrainingStatus(analysisResult.Stderr);
+                    cancellationToken,
+                    (line, isError) => AppendTrainingStatus(line));
 
                 if (analysisResult.ExitCode != 0)
                 {
@@ -967,12 +973,8 @@ namespace missing_data
                     outputPath,
                     trials: 30,
                     jobs: processorCount,
-                    cancellationToken: cancellationToken);
-
-                if (!string.IsNullOrWhiteSpace(result.Stdout))
-                    AppendTrainingStatus(result.Stdout);
-                if (!string.IsNullOrWhiteSpace(result.Stderr))
-                    AppendTrainingStatus(result.Stderr);
+                    cancellationToken: cancellationToken,
+                    outputCallback: (line, isError) => AppendTrainingStatus(line));
 
                 if (result.ExitCode != 0)
                 {
@@ -1008,6 +1010,7 @@ namespace missing_data
             {
                 trainingButton.Enabled = true;
                 cancelTrainingButton.Enabled = false;
+                trainingProgressBar.Visible = false;
                 trainingCancellationSource?.Dispose();
                 trainingCancellationSource = null;
             }
@@ -1283,6 +1286,14 @@ namespace missing_data
         {
             if (trainingStatusTextBox == null)
             {
+                return;
+            }
+
+            if (trainingStatusTextBox.InvokeRequired)
+            {
+                trainingStatusTextBox.BeginInvoke(
+                    new Action<string>(AppendTrainingStatus),
+                    message);
                 return;
             }
 

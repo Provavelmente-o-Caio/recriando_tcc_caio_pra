@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text;
 
 namespace missing_data
 {
@@ -26,7 +27,8 @@ namespace missing_data
             string mode,
             string inputPath,
             string outputPath,
-            CancellationToken cancellationToken = default(CancellationToken))
+            CancellationToken cancellationToken = default(CancellationToken),
+            Action<string, bool> outputCallback = null)
         {
             if (!File.Exists(pythonExe))
             {
@@ -62,7 +64,7 @@ namespace missing_data
                 CreateNoWindow = true
             };
 
-            return await RunProcessAsync(psi, cancellationToken);
+            return await RunProcessAsync(psi, cancellationToken, outputCallback);
         }
         public static async Task<PythonProcessResult> RunPythonTrainingAsync(string pythonExe, string runnerPath, string inputPath, string outputPath, string clustersPath)
         {
@@ -98,7 +100,7 @@ namespace missing_data
                 CreateNoWindow = false
             };
 
-            return await RunProcessAsync(psi, CancellationToken.None);
+            return await RunProcessAsync(psi, CancellationToken.None, null);
         }
 
         public static async Task<PythonProcessResult> RunPythonOptunaTrainingAsync(
@@ -109,7 +111,8 @@ namespace missing_data
             string outputPath,
             int trials,
             int jobs,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            Action<string, bool> outputCallback = null)
         {
             if (!File.Exists(pythonExe))
                 throw new FileNotFoundException("Python executable not found.", pythonExe);
@@ -138,7 +141,7 @@ namespace missing_data
                 CreateNoWindow = false
             };
 
-            return await RunProcessAsync(psi, cancellationToken);
+            return await RunProcessAsync(psi, cancellationToken, outputCallback);
         }
 
 
@@ -177,20 +180,31 @@ namespace missing_data
                 CreateNoWindow = false
             };
 
-            return await RunProcessAsync(psi, CancellationToken.None);
+            return await RunProcessAsync(psi, CancellationToken.None, null);
         }
 
         private static async Task<PythonProcessResult> RunProcessAsync(
             ProcessStartInfo startInfo,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            Action<string, bool> outputCallback)
         {
             using (var process = new Process())
             {
                 process.StartInfo = startInfo;
                 process.Start();
 
-                Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
-                Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+                var stdout = new StringBuilder();
+                var stderr = new StringBuilder();
+                Task stdoutTask = ReadStreamAsync(
+                    process.StandardOutput,
+                    stdout,
+                    false,
+                    outputCallback);
+                Task stderrTask = ReadStreamAsync(
+                    process.StandardError,
+                    stderr,
+                    true,
+                    outputCallback);
                 Task waitForExitTask = Task.Run(() => process.WaitForExit());
                 using (cancellationToken.Register(() => TerminateProcessTree(process)))
                 {
@@ -202,9 +216,24 @@ namespace missing_data
                 return new PythonProcessResult
                 {
                     ExitCode = process.ExitCode,
-                    Stdout = stdoutTask.Result,
-                    Stderr = stderrTask.Result
+                    Stdout = stdout.ToString(),
+                    Stderr = stderr.ToString()
                 };
+            }
+        }
+
+        private static async Task ReadStreamAsync(
+            StreamReader reader,
+            StringBuilder output,
+            bool isError,
+            Action<string, bool> outputCallback)
+        {
+            string line;
+            while ((line = await reader.ReadLineAsync()) != null)
+            {
+                output.AppendLine(line);
+                if (outputCallback != null)
+                    outputCallback(line, isError);
             }
         }
 
