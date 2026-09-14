@@ -519,7 +519,7 @@ namespace missing_data
 
             container.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
             container.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-            container.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+            container.RowStyles.Add(new RowStyle(SizeType.Absolute, 10));
 
             trainingButton = new Button
             {
