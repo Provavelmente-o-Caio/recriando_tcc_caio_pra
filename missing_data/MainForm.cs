@@ -510,7 +510,7 @@ namespace missing_data
                 Dock = DockStyle.Bottom
             };
 
-            runButton.Click += async (sender, e) => await RunButtonTraining_Click(wellsListBoxTraining);
+            runButton.Click += async (sender, e) => await RunButtonOptunaTraining_Click(wellsListBoxTraining);
 
             container.Controls.Add(runButton, 0, 0);
 
@@ -809,6 +809,79 @@ namespace missing_data
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
                 );
+            }
+            finally
+            {
+                runButton.Enabled = true;
+            }
+        }
+
+        private async Task RunButtonOptunaTraining_Click(CheckedListBox clb)
+        {
+            try
+            {
+                if (GetSelectedWells(clb).Count == 0)
+                {
+                    MessageBox.Show(
+                        "Select at least one well to confirm that the Petrel project is ready. "
+                        + "Optuna training uses the five measured-VS Petrobras wells from the configured Python data directory.",
+                        "No wells selected",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                string appData = Environment.GetFolderPath(
+                    Environment.SpecialFolder.ApplicationData);
+                string projectDir = Path.Combine(appData, "recriando_tcc_caio_pra");
+                string pythonExe = Path.Combine(projectDir, ".venv", "Scripts", "python.exe");
+                string optunaScriptPath = Path.Combine(projectDir, "optuna_experiment.py");
+                string outputPath = Path.Combine(
+                    projectDir,
+                    "results",
+                    "petrel_optuna_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+
+                runButton.Enabled = false;
+                AppendStatus("Starting Optuna training with all five measured-VS Petrobras wells...");
+                AppendStatus("Optuna script: " + optunaScriptPath);
+                AppendStatus("Output directory: " + outputPath);
+
+                var result = await Utils.RunPythonOptunaTrainingAsync(
+                    pythonExe,
+                    optunaScriptPath,
+                    outputPath,
+                    trials: 30,
+                    jobs: 1);
+
+                if (!string.IsNullOrWhiteSpace(result.Stdout))
+                    AppendStatus(result.Stdout);
+                if (!string.IsNullOrWhiteSpace(result.Stderr))
+                    AppendStatus(result.Stderr);
+
+                if (result.ExitCode != 0)
+                {
+                    MessageBox.Show(
+                        result.Stderr,
+                        "Optuna training failed",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                    return;
+                }
+
+                AppendStatus("Optuna training completed: " + outputPath);
+                MessageBox.Show(
+                    "Optuna training completed successfully.\n\nResults:\n" + outputPath,
+                    "Training complete",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    ex.ToString(),
+                    "Unexpected error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
             finally
             {

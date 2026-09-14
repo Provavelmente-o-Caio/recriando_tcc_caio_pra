@@ -124,6 +124,57 @@ namespace missing_data
             }
         }
 
+        public static async Task<PythonProcessResult> RunPythonOptunaTrainingAsync(
+            string pythonExe,
+            string optunaScriptPath,
+            string outputPath,
+            int trials,
+            int jobs)
+        {
+            if (!File.Exists(pythonExe))
+                throw new FileNotFoundException("Python executable not found.", pythonExe);
+
+            if (!File.Exists(optunaScriptPath))
+                throw new FileNotFoundException("Optuna runner not found.", optunaScriptPath);
+
+            Directory.CreateDirectory(outputPath);
+
+            var arguments =
+                $"\"{optunaScriptPath}\" " +
+                $"--data-source petrobras " +
+                $"--output \"{outputPath}\" " +
+                $"--trials {trials} " +
+                $"--jobs {jobs}";
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = pythonExe,
+                Arguments = arguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = false
+            };
+
+            using (var process = new Process())
+            {
+                process.StartInfo = psi;
+                process.Start();
+
+                string stdout = await process.StandardOutput.ReadToEndAsync();
+                string stderr = await process.StandardError.ReadToEndAsync();
+
+                await Task.Run(() => process.WaitForExit());
+
+                return new PythonProcessResult
+                {
+                    ExitCode = process.ExitCode,
+                    Stdout = stdout,
+                    Stderr = stderr
+                };
+            }
+        }
+
 
         public static async Task<PythonProcessResult> RunPythonPredictionAsync(string pythonExe, string runnerPath, string inputPath, string outputPath, string clustersPath, string trainedModelFolder)
         {
