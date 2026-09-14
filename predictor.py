@@ -141,6 +141,7 @@ class Predictor:
             "patience": config.get("Patience"),
             "target_feature": config.get("TargetFeature"),
             "clusters": recommended_clusters,
+            "labeled_well_indices": labeled_well_indices,
         }
 
         wells_dfs = wells_to_dataframes(wells, curve_mapping)

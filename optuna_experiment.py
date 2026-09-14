@@ -27,6 +27,42 @@ from utils.training_utilities import (
 from utils.WellLogDataset import WellLogAugmentation, WellLogDataset
 
 
+def normalize_clusters_for_labeled_wells(
+    clusters, labeled_well_indices, labeled_well_count
+):
+    """Convert payload well indices to the compact labeled-well index space."""
+    payload_to_labeled = {
+        int(payload_index): labeled_index
+        for labeled_index, payload_index in enumerate(labeled_well_indices)
+    }
+    normalized = {}
+
+    for cluster_name, cluster_indices in clusters.items():
+        indices = [int(index) for index in cluster_indices]
+        if all(0 <= index < labeled_well_count for index in indices):
+            normalized[cluster_name] = sorted(set(indices))
+            continue
+
+        mapped = [
+            payload_to_labeled[index]
+            for index in indices
+            if index in payload_to_labeled
+        ]
+        if not mapped:
+            raise ValueError(
+                f"Cluster '{cluster_name}' has no wells with the target feature "
+                "after converting payload indices."
+            )
+
+        print(
+            f"Normalized cluster '{cluster_name}' from payload well indices "
+            "to labeled-well indices."
+        )
+        normalized[cluster_name] = sorted(set(mapped))
+
+    return normalized
+
+
 class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
     """Same leave-one-well-out folds as the parent, but the fixed
     hyperparameter grid is replaced by an Optuna study per cluster."""
@@ -338,6 +374,14 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
         clusters = self.base_config.get(
             "clusters", {"A": list(range(len(wells_with_target)))}
         )
+        labeled_well_indices = self.base_config.get("labeled_well_indices")
+        if labeled_well_indices:
+            clusters = normalize_clusters_for_labeled_wells(
+                clusters,
+                labeled_well_indices,
+                len(wells_with_target),
+            )
+
         valid_clusters = {}
         for cluster_name, cluster_indices in clusters.items():
             normalized_indices = sorted(set(int(index) for index in cluster_indices))
