@@ -8,7 +8,7 @@ import torch
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from torch.nn.utils import clip_grad_norm_
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 
 
 def set_deterministic(seed: int = 42):
@@ -153,6 +153,71 @@ def get_predictions_and_targets(model, data_loader, device):
     return all_predictions, all_targets
 
 
+def chunk_based_split(dataset, val_split=0.3, split_seed=42, gap=None):
+    """Split dataset sequences into contiguous, gap-separated blocks.
+
+    Well-log sequences are built from sliding windows, so adjacent
+    sequences share data points.  A random sample-level split would leak
+    validation data into the training set.      Instead, each well's depth axis is split at a contiguous boundary: the
+    first ``1 - val_split`` fraction becomes training and the last
+    ``val_split`` fraction becomes validation, separated by a ``gap`` of
+    positions so that no training window overlaps a validation window.
+
+    Falls back to random splitting if the dataset has no
+    ``sequence_positions`` attribute or too few positions.
+    """
+    if not hasattr(dataset, "sequence_positions") or not dataset.sequence_positions:
+        return _random_split(dataset, val_split, split_seed)
+
+    if gap is None:
+        gap = getattr(dataset, "sequence_length", 1)
+
+    train_indices, val_indices = [], []
+    well_ids = getattr(dataset, "sequence_well_ids", [0] * len(dataset))
+    for well_id in sorted(set(well_ids)):
+        well_indices = [idx for idx, value in enumerate(well_ids) if value == well_id]
+        positions = np.array([dataset.sequence_positions[idx] for idx in well_indices])
+        unique_positions = np.sort(np.unique(positions))
+        if len(unique_positions) < 2:
+            return _random_split(dataset, val_split, split_seed)
+
+        min_pos = int(unique_positions[0])
+        max_pos = int(unique_positions[-1])
+        span = max_pos - min_pos + 1
+        if span - gap <= 0:
+            return _random_split(dataset, val_split, split_seed)
+
+        train_range = int(round(span * (1 - val_split)))
+        train_range = max(1, min(train_range, span - gap - 1))
+        boundary = min_pos + train_range
+        train_positions = {p for p in unique_positions if p < boundary}
+        val_positions = {p for p in unique_positions if p >= boundary + gap}
+        if len(train_positions) < 1 or len(val_positions) < 1:
+            return _random_split(dataset, val_split, split_seed)
+
+        train_indices.extend(
+            idx for idx in well_indices if dataset.sequence_positions[idx] in train_positions
+        )
+        val_indices.extend(
+            idx for idx in well_indices if dataset.sequence_positions[idx] in val_positions
+        )
+
+    if len(train_indices) < 2 or not val_indices:
+        return _random_split(dataset, val_split, split_seed)
+
+    return train_indices, val_indices
+
+
+def _random_split(dataset, val_split, split_seed):
+    """Random sample-level split (fallback when chunk-based is not possible)."""
+    dataset_size = len(dataset)
+    val_size = max(1, int(dataset_size * val_split))
+    val_size = min(val_size, dataset_size - 1)
+    generator = torch.Generator().manual_seed(split_seed)
+    shuffled = torch.randperm(dataset_size, generator=generator).tolist()
+    return shuffled[val_size:], shuffled[:val_size]
+
+
 def train_model_with_validation_split(
     model,
     train_loader,
@@ -162,6 +227,8 @@ def train_model_with_validation_split(
     num_epochs,
     patience,
     val_split=0.3,
+    split_seed=42,
+    gap=None,
     verbose=True,
 ):
     if torch.cuda.is_available():
@@ -172,19 +239,24 @@ def train_model_with_validation_split(
         device = torch.device("cpu")
     model.to(device)
 
-    # Mixed precision training (CUDA only)
-    use_amp = torch.cuda.is_available()
-    scaler = torch.amp.GradScaler("cuda") if use_amp else None
+    # Mixed precision training (CUDA/MPS)
+    use_amp = torch.cuda.is_available() or torch.backends.mps.is_available()
+    scaler = torch.amp.GradScaler(device.type) if use_amp else None
 
-    # Split training data for validation
-    train_data = list(train_loader.dataset)
-    val_size = int(len(train_data) * val_split)
-    train_size = len(train_data) - val_size
+    # Chunk-based split to prevent temporal data leakage
+    dataset_size = len(train_loader.dataset)
+    if dataset_size < 2:
+        raise ValueError(
+            "Validation split requires at least 2 samples in the training dataset."
+        )
 
-    train_subset = torch.utils.data.Subset(train_loader.dataset, range(train_size))
-    val_subset = torch.utils.data.Subset(
-        train_loader.dataset, range(train_size, len(train_data))
+    train_indices, val_indices = chunk_based_split(
+        train_loader.dataset, val_split=val_split, split_seed=split_seed, gap=gap,
     )
+    train_size = len(train_indices)
+
+    train_subset = Subset(train_loader.dataset, train_indices)
+    val_subset = Subset(train_loader.dataset, val_indices)
 
     train_loader_split = DataLoader(
         train_subset, batch_size=train_loader.batch_size, shuffle=True
@@ -208,15 +280,15 @@ def train_model_with_validation_split(
             features, targets = features.to(device), targets.to(device)
             optimizer.zero_grad()
 
-            # Mixed precision foward pass
             if use_amp:
-                # `scaler` is guaranteed to be set when `use_amp` is True.
                 assert scaler is not None
-                with torch.amp.autocast("cuda"):
+                with torch.amp.autocast(device.type):
                     outputs = model(features)
                     loss = criterion(outputs, targets)
                 assert isinstance(loss, torch.Tensor)
                 scaler.scale(loss).backward()
+                scaler.unscale_(optimizer)
+                clip_grad_norm_(model.parameters(), max_norm=1.0)
                 scaler.step(optimizer)
                 scaler.update()
             else:
@@ -236,15 +308,16 @@ def train_model_with_validation_split(
         train_metrics = calculate_metrics(epoch_train_predictions, epoch_train_targets)
         history["train_r2"].append(train_metrics["R2"])
 
-        # Validation
+        # Validation — collect predictions in the same pass as val loss
         model.eval()
         _set_dataset_training_mode(train_loader_split.dataset, training=False)
         total_val_loss = 0.0
+        val_predictions, val_targets = [], []
         with torch.no_grad():
             for features, targets in val_loader:
                 features, targets = features.to(device), targets.to(device)
                 if use_amp:
-                    with torch.amp.autocast("cuda"):
+                    with torch.amp.autocast(device.type):
                         outputs = model(features)
                         val_loss = criterion(outputs, targets)
                         assert isinstance(val_loss, torch.Tensor)
@@ -253,13 +326,11 @@ def train_model_with_validation_split(
                     val_loss = criterion(outputs, targets)
                     assert isinstance(val_loss, torch.Tensor)
                 total_val_loss += val_loss.item()
+                val_predictions.extend(outputs.cpu().numpy().flatten())
+                val_targets.extend(targets.cpu().numpy().flatten())
         avg_val_loss = total_val_loss / len(val_loader)
         history["val_loss"].append(avg_val_loss)
 
-        # Calculate validation metrics
-        val_predictions, val_targets = get_predictions_and_targets(
-            model, val_loader, device
-        )
         val_metrics = calculate_metrics(val_predictions, val_targets)
         history["val_r2"].append(val_metrics["R2"])
 
@@ -307,26 +378,25 @@ def evaluate_model(model, test_loader, criterion):
     model.to(device)
     model.eval()
 
-    use_amp = torch.cuda.is_available()
+    use_amp = torch.cuda.is_available() or torch.backends.mps.is_available()
 
-    total_test_loss = 0
+    total_test_loss = 0.0
+    test_predictions, test_targets = [], []
     with torch.no_grad():
         for features, targets in test_loader:
             features, targets = features.to(device), targets.to(device)
             if use_amp:
-                with torch.cuda.amp.autocast():
+                with torch.amp.autocast(device.type):
                     outputs = model(features)
                     loss = criterion(outputs, targets)
             else:
                 outputs = model(features)
                 loss = criterion(outputs, targets)
             total_test_loss += loss.item()
+            test_predictions.extend(outputs.cpu().numpy().flatten())
+            test_targets.extend(targets.cpu().numpy().flatten())
     avg_test_loss = total_test_loss / len(test_loader)
 
-    # Calculate metrics
-    test_predictions, test_targets = get_predictions_and_targets(
-        model, test_loader, device
-    )
     test_metrics = calculate_metrics(test_predictions, test_targets)
     test_metrics["loss"] = avg_test_loss
 

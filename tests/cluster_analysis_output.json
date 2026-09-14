@@ -1,0 +1,24 @@
+{
+  "status": "success",
+  "clusters": {
+    "1": [
+      0,
+      1,
+      2
+    ]
+  },
+  "visualizations": {
+    "Dendrogram combined": "C:\\Users\\caiof\\AppData\\Local\\Temp\\vs_predictior_petrel\\well_similarity_analysis\\dendrogram_combined.png",
+    "Heatmap combined": "C:\\Users\\caiof\\AppData\\Local\\Temp\\vs_predictior_petrel\\well_similarity_analysis\\heatmap_combined.png",
+    "Heatmap correlation": "C:\\Users\\caiof\\AppData\\Local\\Temp\\vs_predictior_petrel\\well_similarity_analysis\\heatmap_correlation.png",
+    "Heatmap DTW": "C:\\Users\\caiof\\AppData\\Local\\Temp\\vs_predictior_petrel\\well_similarity_analysis\\heatmap_dtw.png",
+    "Heatmap feature space": "C:\\Users\\caiof\\AppData\\Local\\Temp\\vs_predictior_petrel\\well_similarity_analysis\\heatmap_feature_space.png",
+    "Heatmap statistical": "C:\\Users\\caiof\\AppData\\Local\\Temp\\vs_predictior_petrel\\well_similarity_analysis\\heatmap_statistical.png",
+    "MDS combined": "C:\\Users\\caiof\\AppData\\Local\\Temp\\vs_predictior_petrel\\well_similarity_analysis\\mds_combined.png",
+    "MDS comparison": "C:\\Users\\caiof\\AppData\\Local\\Temp\\vs_predictior_petrel\\well_similarity_analysis\\mds_comparison.png",
+    "MDS correlation": "C:\\Users\\caiof\\AppData\\Local\\Temp\\vs_predictior_petrel\\well_similarity_analysis\\mds_correlation.png",
+    "MDS DTW": "C:\\Users\\caiof\\AppData\\Local\\Temp\\vs_predictior_petrel\\well_similarity_analysis\\mds_dtw.png",
+    "MDS feature space": "C:\\Users\\caiof\\AppData\\Local\\Temp\\vs_predictior_petrel\\well_similarity_analysis\\mds_feature_space.png",
+    "MDS statistical": "C:\\Users\\caiof\\AppData\\Local\\Temp\\vs_predictior_petrel\\well_similarity_analysis\\mds_statistical.png"
+  }
+}
