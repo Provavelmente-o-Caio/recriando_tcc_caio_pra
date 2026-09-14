@@ -60,6 +60,7 @@ namespace missing_data
 
         // Configuration
         private TextBox statusTextBox;
+        private TextBox trainingStatusTextBox;
         private Button runButton;
         private ComboBox vsComboBox;
         private ComboBox vpComboBox;
@@ -131,6 +132,17 @@ namespace missing_data
             mainTab.Controls.Add(statusTextBox);
 
             TrainingTab.Controls.Add(BuildTrainingSplit());
+            trainingStatusTextBox = new TextBox
+            {
+                Dock = DockStyle.Bottom,
+                Height = 150,
+                Multiline = true,
+                ReadOnly = true,
+                ScrollBars = ScrollBars.Vertical,
+                Font = new Font("Consolas", 9),
+                Text = "Ready."
+            };
+            TrainingTab.Controls.Add(trainingStatusTextBox);
 
             configurationTab.Controls.Add(BuildConfigurationPanel());
 
@@ -831,22 +843,49 @@ namespace missing_data
                     return;
                 }
 
+                var selectedWells = GetSelectedWells(clb);
+                var selectedConfiguration = getCurveMapping();
+                var pythonConfiguration = GetPythonConfiguration();
                 string appData = Environment.GetFolderPath(
                     Environment.SpecialFolder.ApplicationData);
                 string projectDir = Path.Combine(appData, "recriando_tcc_caio_pra");
                 string pythonExe = Path.Combine(projectDir, ".venv", "Scripts", "python.exe");
                 string optunaScriptPath = Path.Combine(projectDir, "optuna_experiment.py");
+                string workDir = Path.Combine(Path.GetTempPath(), "vs_predictior_petrel");
+                Directory.CreateDirectory(workDir);
+                string inputPath = Path.Combine(workDir, "optuna_training_input.json");
+                string clustersPath = Path.Combine(workDir, "optuna_training_clusters.json");
+                var payload = BuildClusterAnalysisPayload(
+                    selectedWells,
+                    selectedConfiguration,
+                    pythonConfiguration);
+                File.WriteAllText(
+                    inputPath,
+                    JsonConvert.SerializeObject(payload, Formatting.Indented));
+                File.WriteAllText(
+                    clustersPath,
+                    JsonConvert.SerializeObject(
+                        new
+                        {
+                            clusters = new Dictionary<string, List<int>>
+                            {
+                                { "selected_wells", Enumerable.Range(0, selectedWells.Count).ToList() }
+                            }
+                        },
+                        Formatting.Indented));
                 string outputPath = Path.Combine(
                     projectDir,
                     "results",
                     "petrel_optuna_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
 
                 runButton.Enabled = false;
-                AppendStatus("Starting Optuna training with the interface-selected JSON wells...");
-                AppendStatus("Optuna script: " + optunaScriptPath);
-                AppendStatus("Output directory: " + outputPath);
+                AppendTrainingStatus("Starting Optuna training with the interface-selected JSON wells...");
+                AppendTrainingStatus("Selected wells: " + selectedWells.Count);
+                AppendTrainingStatus("Input JSON: " + inputPath);
+                AppendTrainingStatus("Optuna script: " + optunaScriptPath);
+                AppendTrainingStatus("Output directory: " + outputPath);
                 int processorCount = Math.Max(1, Environment.ProcessorCount);
-                AppendStatus("Optuna jobs: " + processorCount);
+                AppendTrainingStatus("Optuna jobs: " + processorCount);
 
                 var result = await Utils.RunPythonOptunaTrainingAsync(
                     pythonExe,
@@ -858,9 +897,9 @@ namespace missing_data
                     jobs: processorCount);
 
                 if (!string.IsNullOrWhiteSpace(result.Stdout))
-                    AppendStatus(result.Stdout);
+                    AppendTrainingStatus(result.Stdout);
                 if (!string.IsNullOrWhiteSpace(result.Stderr))
-                    AppendStatus(result.Stderr);
+                    AppendTrainingStatus(result.Stderr);
 
                 if (result.ExitCode != 0)
                 {
@@ -872,7 +911,7 @@ namespace missing_data
                     return;
                 }
 
-                AppendStatus("Optuna training completed: " + outputPath);
+                AppendTrainingStatus("Optuna training completed: " + outputPath);
                 MessageBox.Show(
                     "Optuna training completed successfully.\n\nResults:\n" + outputPath,
                     "Training complete",
@@ -881,6 +920,7 @@ namespace missing_data
             }
             catch (Exception ex)
             {
+                AppendTrainingStatus("ERROR: " + ex.Message);
                 MessageBox.Show(
                     ex.ToString(),
                     "Unexpected error",
@@ -1154,11 +1194,22 @@ namespace missing_data
             {
                 return;
             }
-            else
+
+            statusTextBox.AppendText(
+                Environment.NewLine + "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + message);
+        }
+
+        private void AppendTrainingStatus(string message)
+        {
+            if (trainingStatusTextBox == null)
             {
-                statusTextBox.AppendText(
-                    Environment.NewLine + "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + message);
+                return;
             }
+
+            trainingStatusTextBox.AppendText(
+                Environment.NewLine
+                + "[" + DateTime.Now.ToString("HH:mm:ss") + "] "
+                + message);
         }
 
         private void SelectAllButton_Click(CheckedListBox clb)
