@@ -134,18 +134,7 @@ class Predictor:
         wells = validate_wells(payload)
         config = validate_config(payload)
 
-        base_config = {
-            "sequence_length": config.get("SequenceLength"),
-            "mask_value": config.get("MaskValue"),
-            "num_epochs": config.get("NumEpochs"),
-            "patience": config.get("Patience"),
-            "target_feature": config.get("TargetFeature"),
-            "clusters": recommended_clusters,
-            "labeled_well_indices": labeled_well_indices,
-        }
-
         wells_dfs = wells_to_dataframes(wells, curve_mapping)
-
         wells_dfs = [add_derived_features(df) for df in wells_dfs]
 
         labeled_well_indices = [
@@ -158,6 +147,16 @@ class Predictor:
             recommended_clusters,
             labeled_well_indices,
         )
+
+        base_config = {
+            "sequence_length": config.get("SequenceLength"),
+            "mask_value": config.get("MaskValue"),
+            "num_epochs": config.get("NumEpochs"),
+            "patience": config.get("Patience"),
+            "target_feature": config.get("TargetFeature"),
+            "clusters": recommended_clusters,
+            "labeled_well_indices": labeled_well_indices,
+        }
 
         return (
             base_config,
