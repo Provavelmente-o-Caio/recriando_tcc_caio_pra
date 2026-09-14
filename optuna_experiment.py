@@ -13,11 +13,13 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau, StepL
 from torch.utils.data import DataLoader
 
 from crossfold_hyperparamet_experiment import CrossFoldHyperparameterExperiment
+from petrobras_dataset import filter_commom_features, read_all_wells_with_dept_to_list
 from predictor import Predictor
 from selfAttention import Rebuilt_SAIDNN
 from utils.modelTrainer import FinalModelTrainer, load_best_configuration
 from utils.training_utilities import (
     WarmupScheduler,
+    add_derived_features,
     evaluate_model,
     set_deterministic,
     train_model_with_validation_split,
@@ -413,22 +415,62 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", required=True, help="Training input JSON payload")
     parser.add_argument(
-        "--cluster", required=True, help="Recommended clusters JSON path"
+        "--input", help="Training input JSON payload when using the payload source"
+    )
+    parser.add_argument(
+        "--cluster", help="Recommended clusters JSON path for the payload source"
     )
     parser.add_argument(
         "--output", required=True, help="Directory to store experiment results"
+    )
+    parser.add_argument(
+        "--data-source",
+        choices=("payload", "petrobras"),
+        default="payload",
+        help="Training data source (default: payload)",
     )
     parser.add_argument("--trials", type=int, default=30)
     parser.add_argument("--model_root", default="data/petrobras")
     parser.add_argument("--jobs", type=int, default=1)
     args = parser.parse_args()
 
-    predictor = Predictor(model_root=args.model_root, device=None)
-    base_config, feature_combinations, wells_with_vs, wells_without_vs = (
-        predictor.prediction_setup(args.input, args.output, args.cluster)
-    )
+    if args.data_source == "petrobras":
+        if args.input or args.cluster:
+            parser.error("--input and --cluster are not used with --data-source petrobras")
+
+        feature_combinations = [
+            ["VP", "RHO", "GR", "CALIPER", "POROSIDADE", "SATURACAO", "ARGILOSIDADE"],
+            ["VP", "RHO", "GR", "CALIPER", "POROSIDADE", "SATURACAO"],
+            ["VP", "RHO", "ACOUSTIC_IMP", "GR", "POROSIDADE", "SATURACAO"],
+            ["VP", "RHO", "POROSIDADE", "GR", "ARGILOSIDADE"],
+            ["VP", "RHO", "POROSIDADE", "SATURACAO"],
+        ]
+        wells = read_all_wells_with_dept_to_list(features="all")
+        wells = filter_commom_features(wells, ignore=["VS"])
+        wells = [add_derived_features(df) for df in wells]
+        wells_with_vs = [df for df in wells if "VS" in df.columns]
+        wells_without_vs = [df for df in wells if "VS" not in df.columns]
+        if len(wells_with_vs) != 5:
+            raise ValueError(
+                "Expected five Petrobras wells with measured VS (WELL_2-WELL_6); "
+                f"found {len(wells_with_vs)}."
+            )
+        base_config = {
+            "sequence_length": 15,
+            "mask_value": -1.0,
+            "num_epochs": 500,
+            "patience": 150,
+            "target_feature": "VS",
+            "clusters": {"petrobras_all_measured_vs": list(range(len(wells_with_vs)))},
+        }
+    else:
+        if not args.input or not args.cluster:
+            parser.error("--input and --cluster are required with --data-source payload")
+        predictor = Predictor(model_root=args.model_root, device=None)
+        base_config, feature_combinations, wells_with_vs, wells_without_vs = (
+            predictor.prediction_setup(args.input, args.output, args.cluster)
+        )
 
     experiment = OptunaCrossFoldExperiment(base_config, results_dir=args.output)
     best_config = experiment.run_optuna_optimization(
