@@ -845,17 +845,20 @@ namespace missing_data
                 }
 
                 var selectedWells = GetSelectedWells(clb);
+                trainingButton.Enabled = false;
                 var selectedConfiguration = getCurveMapping();
                 var pythonConfiguration = GetPythonConfiguration();
                 string appData = Environment.GetFolderPath(
                     Environment.SpecialFolder.ApplicationData);
                 string projectDir = Path.Combine(appData, "recriando_tcc_caio_pra");
                 string pythonExe = Path.Combine(projectDir, ".venv", "Scripts", "python.exe");
+                string runnerPath = Path.Combine(projectDir, "predictor.py");
                 string optunaScriptPath = Path.Combine(projectDir, "optuna_experiment.py");
                 string workDir = Path.Combine(Path.GetTempPath(), "vs_predictior_petrel");
                 Directory.CreateDirectory(workDir);
                 string inputPath = Path.Combine(workDir, "optuna_training_input.json");
                 string clustersPath = Path.Combine(workDir, "optuna_training_clusters.json");
+                string analysisOutputPath = Path.Combine(workDir, "optuna_cluster_analysis_output.json");
                 var payload = BuildClusterAnalysisPayload(
                     selectedWells,
                     selectedConfiguration,
@@ -863,15 +866,60 @@ namespace missing_data
                 File.WriteAllText(
                     inputPath,
                     JsonConvert.SerializeObject(payload, Formatting.Indented));
+
+                if (!File.Exists(pythonExe))
+                    throw new FileNotFoundException("Python executable not found.", pythonExe);
+
+                if (!File.Exists(runnerPath))
+                    throw new FileNotFoundException("Predictor script not found.", runnerPath);
+
+                AppendTrainingStatus("Analyzing clusters before Optuna training...");
+                var analysisResult = await Utils.RunPythonAnalysisAsync(
+                    pythonExe,
+                    runnerPath,
+                    "analyze",
+                    inputPath,
+                    analysisOutputPath);
+
+                if (!string.IsNullOrWhiteSpace(analysisResult.Stdout))
+                    AppendTrainingStatus(analysisResult.Stdout);
+                if (!string.IsNullOrWhiteSpace(analysisResult.Stderr))
+                    AppendTrainingStatus(analysisResult.Stderr);
+
+                if (analysisResult.ExitCode != 0)
+                {
+                    MessageBox.Show(
+                        analysisResult.Stderr,
+                        "Cluster analysis failed",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                    return;
+                }
+
+                if (!File.Exists(analysisOutputPath))
+                    throw new InvalidOperationException(
+                        "Cluster analysis finished without generating an output JSON.");
+
+                var analysisOutput = JsonConvert.DeserializeObject<ClusterAnalysisOutput>(
+                    File.ReadAllText(analysisOutputPath));
+
+                if (analysisOutput == null || analysisOutput.Status != "success")
+                    throw new InvalidOperationException(
+                        "Cluster analysis did not finish successfully.");
+
+                AppendTrainingStatus(
+                    "Clusters found: " + analysisOutput.Clusters.Count);
+
+                var clusterForm = new ClusterAnalysisVisualizationForm(analysisOutput);
+                if (clusterForm.ShowDialog() != DialogResult.OK)
+                    return;
+
                 File.WriteAllText(
                     clustersPath,
                     JsonConvert.SerializeObject(
                         new
                         {
-                            clusters = new Dictionary<string, List<int>>
-                            {
-                                { "selected_wells", Enumerable.Range(0, selectedWells.Count).ToList() }
-                            }
+                            clusters = clusterForm.EditedClusters
                         },
                         Formatting.Indented));
                 string outputPath = Path.Combine(
@@ -879,9 +927,9 @@ namespace missing_data
                     "results",
                     "petrel_optuna_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
 
-                trainingButton.Enabled = false;
-                AppendTrainingStatus("Starting Optuna training with the interface-selected JSON wells...");
+                AppendTrainingStatus("Starting Optuna training with the analyzed clusters...");
                 AppendTrainingStatus("Selected wells: " + selectedWells.Count);
+                AppendTrainingStatus("Clusters JSON: " + clustersPath);
                 AppendTrainingStatus("Input JSON: " + inputPath);
                 AppendTrainingStatus("Optuna script: " + optunaScriptPath);
                 AppendTrainingStatus("Output directory: " + outputPath);
