@@ -147,8 +147,16 @@ class Predictor:
 
         wells_dfs = [add_derived_features(df) for df in wells_dfs]
 
+        labeled_well_indices = [
+            index for index, df in enumerate(wells_dfs) if "VS" in df.columns
+        ]
         wells_with_vs = [df for df in wells_dfs if "VS" in df.columns]
         wells_without_vs = [df for df in wells_dfs if "VS" not in df.columns]
+
+        recommended_clusters = normalize_cluster_indices(
+            recommended_clusters,
+            labeled_well_indices,
+        )
 
         return (
             base_config,
@@ -423,6 +431,66 @@ def validate_wells(payload: dict[str, Any]):
             raise ValueError(f"well at index {index} must have logs: {logs}")
 
     return wells
+
+
+def normalize_cluster_indices(
+    clusters: dict[str, list[int]],
+    labeled_well_indices: list[int],
+) -> dict[str, list[int]]:
+    """Map clusters from payload-well indices to labeled-well indices.
+
+    Cluster analysis uses the compact list of wells containing VS. Older UI
+    versions could persist indices from the complete payload list instead.
+    """
+    labeled_count = len(labeled_well_indices)
+    flattened_indices = [
+        int(index)
+        for cluster_indices in clusters.values()
+        for index in cluster_indices
+    ]
+
+    uses_payload_indices = any(
+        index >= labeled_count for index in flattened_indices
+    )
+    if not uses_payload_indices:
+        invalid = [
+            index
+            for index in flattened_indices
+            if index < 0 or index >= labeled_count
+        ]
+        if invalid:
+            raise ValueError(
+                f"Clusters contain invalid labeled-well indices {sorted(set(invalid))}; "
+                f"{labeled_count} wells with VS are available."
+            )
+        return {
+            name: sorted(set(int(index) for index in indices))
+            for name, indices in clusters.items()
+        }
+
+    payload_to_labeled = {
+        payload_index: labeled_index
+        for labeled_index, payload_index in enumerate(labeled_well_indices)
+    }
+    normalized = {}
+    for name, indices in clusters.items():
+        mapped = []
+        for index in indices:
+            index = int(index)
+            if index not in payload_to_labeled:
+                print(
+                    f"Skipping payload well index {index} from cluster '{name}': "
+                    "the well does not contain VS."
+                )
+                continue
+            mapped.append(payload_to_labeled[index])
+        normalized[name] = sorted(set(mapped))
+
+    print(
+        "Normalized cluster indices from the complete payload well list "
+        "to the labeled-well list."
+    )
+    return normalized
 
 
 def validate_config(payload: dict[str, Any]):
