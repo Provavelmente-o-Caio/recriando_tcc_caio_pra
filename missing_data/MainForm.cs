@@ -61,7 +61,8 @@ namespace missing_data
         // Configuration
         private TextBox statusTextBox;
         private TextBox trainingStatusTextBox;
-        private Button runButton;
+        private Button predictionButton;
+        private Button trainingButton;
         private ComboBox vsComboBox;
         private ComboBox vpComboBox;
         private ComboBox rhoComboBox;
@@ -405,16 +406,16 @@ namespace missing_data
             layout.Controls.Add(trainedModelFolderTextBox, 1, 0);
             layout.Controls.Add(browseTrainingFolderButton, 2, 0);
 
-            runButton = new Button
+            predictionButton = new Button
             {
                 Text = "Run prediction",
                 Height = 36,
                 Dock = DockStyle.Bottom
             };
 
-            runButton.Click += async (sender, e) => await RunButton_ClickAsync(wellsListBoxPrediction);
+            predictionButton.Click += async (sender, e) => await RunButton_ClickAsync(wellsListBoxPrediction);
 
-            group.Controls.Add(runButton);
+            group.Controls.Add(predictionButton);
             group.Controls.Add(layout);
 
             return group;
@@ -515,16 +516,16 @@ namespace missing_data
             container.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             container.RowStyles.Add(new RowStyle(SizeType.Absolute, 12));
 
-            runButton = new Button
+            trainingButton = new Button
             {
                 Text = "Run Training",
                 Height = 36,
                 Dock = DockStyle.Bottom
             };
 
-            runButton.Click += async (sender, e) => await RunButtonOptunaTraining_Click(wellsListBoxTraining);
+            trainingButton.Click += async (sender, e) => await RunButtonOptunaTraining_Click(wellsListBoxTraining);
 
-            container.Controls.Add(runButton, 0, 0);
+            container.Controls.Add(trainingButton, 0, 0);
 
             group.Controls.Add(container);
 
@@ -824,7 +825,7 @@ namespace missing_data
             }
             finally
             {
-                runButton.Enabled = true;
+                trainingButton.Enabled = true;
             }
         }
 
@@ -878,7 +879,7 @@ namespace missing_data
                     "results",
                     "petrel_optuna_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
 
-                runButton.Enabled = false;
+                trainingButton.Enabled = false;
                 AppendTrainingStatus("Starting Optuna training with the interface-selected JSON wells...");
                 AppendTrainingStatus("Selected wells: " + selectedWells.Count);
                 AppendTrainingStatus("Input JSON: " + inputPath);
@@ -929,7 +930,7 @@ namespace missing_data
             }
             finally
             {
-                runButton.Enabled = true;
+                trainingButton.Enabled = true;
             }
         }
 
@@ -948,7 +949,7 @@ namespace missing_data
 
             try
             {
-                runButton.Enabled = false;
+                predictionButton.Enabled = false;
                 AppendStatus("Starting cluster analysis...");
 
                 var selectedWells = GetSelectedWells(clb);
@@ -1184,7 +1185,7 @@ namespace missing_data
             }
             finally
             {
-                runButton.Enabled = true;
+                predictionButton.Enabled = true;
             }
         }
 
