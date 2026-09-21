@@ -6,6 +6,7 @@ import time
 from typing import Any, Literal
 
 import lasio as ls
+import numpy as np
 import polars as pl
 import torch
 
