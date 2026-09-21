@@ -3,6 +3,7 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace missing_data
@@ -32,17 +33,75 @@ namespace missing_data
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 3,
+                RowCount = 2,
                 Padding = new Padding(10)
             };
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 90));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
 
-            root.Controls.Add(BuildSummaryPanel(), 0, 0);
-            root.Controls.Add(BuildWellsGrid(), 0, 1);
-            root.Controls.Add(BuildActionPanel(), 0, 2);
+            root.Controls.Add(BuildResultsTabs(), 0, 0);
+            root.Controls.Add(BuildActionPanel(), 0, 1);
             Controls.Add(root);
+        }
+
+        private Control BuildResultsTabs()
+        {
+            var tabs = new TabControl
+            {
+                Dock = DockStyle.Fill
+            };
+
+            var resultsPage = new TabPage("Results");
+            var resultsLayout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                Padding = new Padding(4)
+            };
+            resultsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 90));
+            resultsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            resultsLayout.Controls.Add(BuildSummaryPanel(), 0, 0);
+            resultsLayout.Controls.Add(BuildWellsGrid(), 0, 1);
+            resultsPage.Controls.Add(resultsLayout);
+            tabs.TabPages.Add(resultsPage);
+
+            AddPlotTabs(tabs);
+            return tabs;
+        }
+
+        private void AddPlotTabs(TabControl tabs)
+        {
+            string plotsDirectory = (string)result["plots_dir"];
+            if (string.IsNullOrWhiteSpace(plotsDirectory)
+                || !Directory.Exists(plotsDirectory))
+            {
+                return;
+            }
+
+            foreach (string plotPath in Directory
+                .GetFiles(plotsDirectory, "*.png")
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
+            {
+                var page = new TabPage(Path.GetFileNameWithoutExtension(plotPath));
+                var pictureBox = new PictureBox
+                {
+                    Dock = DockStyle.Fill,
+                    SizeMode = PictureBoxSizeMode.Zoom,
+                    Image = LoadImageWithoutLocking(plotPath)
+                };
+                page.Controls.Add(pictureBox);
+                tabs.TabPages.Add(page);
+            }
+        }
+
+        private Image LoadImageWithoutLocking(string path)
+        {
+            using (var stream = new MemoryStream(File.ReadAllBytes(path)))
+            using (var image = Image.FromStream(stream))
+            {
+                return new Bitmap(image);
+            }
         }
 
         private Control BuildSummaryPanel()
