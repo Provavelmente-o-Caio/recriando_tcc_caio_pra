@@ -314,6 +314,91 @@ class Predictor:
             f"({plot_elapsed / 60:.1f} min)"
         )
 
+        self._write_prediction_result(
+            output_path=output_path,
+            experiment_dir=experiment_dir,
+            final_output_dir=final_output_dir,
+            all_results=all_results,
+        )
+
+    def _write_prediction_result(
+        self,
+        output_path: str,
+        experiment_dir: str,
+        final_output_dir: str,
+        all_results: dict[str, dict[str, Any]],
+    ) -> None:
+        """Write the machine-readable contract consumed by the Petrel UI."""
+        output_directory = os.path.dirname(output_path)
+        if output_directory:
+            os.makedirs(output_directory, exist_ok=True)
+
+        wells = []
+        validation_metrics = []
+        for well_key, result in all_results.items():
+            entry = {
+                "id": well_key,
+                "has_ground_truth": bool(result.get("has_ground_truth", False)),
+                "cluster": result.get("cluster"),
+                "prediction_count": len(result.get("predictions", [])),
+            }
+            if result.get("has_ground_truth"):
+                metrics = {
+                    name: (
+                        float(value)
+                        if value is not None and np.isfinite(float(value))
+                        else None
+                    )
+                    for name, value in result.get("metrics", {}).items()
+                }
+                entry["metrics"] = metrics
+                validation_metrics.append(metrics)
+            wells.append(entry)
+
+        metric_summary = {}
+        if validation_metrics:
+            for metric_name in ("R2", "RMSE", "MSE", "MAE"):
+                values = [
+                    float(metrics[metric_name])
+                    for metrics in validation_metrics
+                    if metrics.get(metric_name) is not None
+                    and not np.isnan(float(metrics[metric_name]))
+                ]
+                if values:
+                    metric_summary[metric_name] = {
+                        "mean": float(np.mean(values)),
+                        "std": float(np.std(values)),
+                        "count": len(values),
+                    }
+
+        result = {
+            "schema_version": 1,
+            "status": "success",
+            "experiment_dir": os.path.abspath(experiment_dir),
+            "final_model_dir": os.path.abspath(final_output_dir),
+            "predictions_file": os.path.abspath(
+                os.path.join(final_output_dir, "all_predictions.json")
+            ),
+            "summary_report_file": os.path.abspath(
+                os.path.join(final_output_dir, "SUMMARY_REPORT.txt")
+            ),
+            "plots_dir": os.path.abspath(os.path.join(final_output_dir, "plots")),
+            "well_count": len(wells),
+            "wells_with_ground_truth": sum(
+                1 for well in wells if well["has_ground_truth"]
+            ),
+            "wells_without_ground_truth": sum(
+                1 for well in wells if not well["has_ground_truth"]
+            ),
+            "wells": wells,
+            "metrics": metric_summary,
+        }
+
+        with open(output_path, "w", encoding="utf-8") as file_handle:
+            json.dump(result, file_handle, indent=2, allow_nan=False)
+
+        print(f"Prediction result contract saved to {output_path}")
+
     def train(self, input_path: str, output_path: str, recommended_clusters_path: str):
         # JANK: THIS IS A TEMPORARY FIX
         working_dir = os.path.dirname(output_path)

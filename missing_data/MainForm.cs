@@ -25,6 +25,33 @@ namespace missing_data
         public Dictionary<string, string> Visualizations { get; set; }
     }
 
+    public class PredictionResultOutput
+    {
+        [JsonProperty("schema_version")]
+        public int SchemaVersion { get; set; }
+
+        [JsonProperty("status")]
+        public string Status { get; set; }
+
+        [JsonProperty("predictions_file")]
+        public string PredictionsFile { get; set; }
+
+        [JsonProperty("summary_report_file")]
+        public string SummaryReportFile { get; set; }
+
+        [JsonProperty("plots_dir")]
+        public string PlotsDirectory { get; set; }
+
+        [JsonProperty("well_count")]
+        public int WellCount { get; set; }
+
+        [JsonProperty("wells_with_ground_truth")]
+        public int WellsWithGroundTruth { get; set; }
+
+        [JsonProperty("wells_without_ground_truth")]
+        public int WellsWithoutGroundTruth { get; set; }
+    }
+
     public class WellListItem
     {
         public Borehole Borehole { get; private set; }
@@ -1062,7 +1089,8 @@ namespace missing_data
                 Directory.CreateDirectory(workDir);
 
                 string inputPath = Path.Combine(workDir, "cluster_analysis_input.json");
-                string outputPath = Path.Combine(workDir, "cluster_analysis_output.json");
+                string analysisOutputPath = Path.Combine(workDir, "cluster_analysis_output.json");
+                string predictionOutputPath = Path.Combine(workDir, "prediction_result.json");
 
                 AppendStatus("Exporting selected wells to JSON...");
 
@@ -1125,7 +1153,7 @@ namespace missing_data
                     runnerPath,
                     "analyze",
                     inputPath,
-                    outputPath
+                    analysisOutputPath
                 );
 
                 if (!string.IsNullOrWhiteSpace(result.Stdout))
@@ -1152,7 +1180,7 @@ namespace missing_data
                     return;
                 }
 
-                if (!File.Exists(outputPath))
+                if (!File.Exists(analysisOutputPath))
                 {
                     MessageBox.Show(
                         "Python finished but did not generate output JSON.",
@@ -1166,7 +1194,7 @@ namespace missing_data
 
                 AppendStatus("Reading cluster analysis result...");
 
-                string outputJson = File.ReadAllText(outputPath);
+                string outputJson = File.ReadAllText(analysisOutputPath);
 
                 var analysisOutput = JsonConvert.DeserializeObject<ClusterAnalysisOutput>(
                     outputJson
@@ -1217,7 +1245,7 @@ namespace missing_data
                         pythonExe,
                         runnerPath,
                         inputPath,
-                        outputPath,
+                        predictionOutputPath,
                         clustersPath,
                         trainedModelFolderTextBox.Text
                     );
@@ -1244,10 +1272,10 @@ namespace missing_data
                     );
                 }
 
-                if (!File.Exists(outputPath))
+                if (!File.Exists(predictionOutputPath))
                 {
                     MessageBox.Show(
-                        "Python finished but did not generate an output.",
+                        "Python finished but did not generate the prediction result contract.",
                         "Missing output",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error
@@ -1255,6 +1283,21 @@ namespace missing_data
 
                     return;
                 }
+
+                var predictionOutput = JsonConvert.DeserializeObject<PredictionResultOutput>(
+                    File.ReadAllText(predictionOutputPath));
+
+                if (predictionOutput == null || predictionOutput.Status != "success")
+                {
+                    throw new InvalidOperationException(
+                        "Prediction did not finish successfully.");
+                }
+
+                AppendStatus(
+                    "Prediction completed for "
+                    + predictionOutput.WellCount
+                    + " wells. Results: "
+                    + predictionOutput.PredictionsFile);
             }
             catch (Exception ex)
             {
