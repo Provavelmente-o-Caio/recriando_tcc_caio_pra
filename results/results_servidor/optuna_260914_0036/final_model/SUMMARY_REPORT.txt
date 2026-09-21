@@ -1,0 +1,79 @@
+================================================================================
+WELL LOG VS PREDICTION - FINAL MODEL SUMMARY REPORT
+================================================================================
+
+Generated: 2026-09-14 03:35:45
+
+--------------------------------------------------------------------------------
+BEST MODEL CONFIGURATION
+--------------------------------------------------------------------------------
+Cluster: petrobras_all_measured_vs
+  Wells: [0, 1, 2, 3, 4]
+  Features: ['VP', 'RHO', 'POROSIDADE', 'SATURACAO']
+  Hyperparameters: {'embed_dim': 160, 'num_heads': 8, 'num_blocks': 2, 'dropout': 0.4474594211590665, 'learning_rate': 0.00011758545456048372, 'batch_size': 64, 'scheduler_type': 'cosine', 'criterion_type': 'huber', 'optimizer_type': 'adam', 'weight_decay': 0.0004210257422087639}
+  Avg R²: 0.11991599798202515 | Best fold R²: 0.565334677696228
+
+--------------------------------------------------------------------------------
+PREDICTIONS ON WELLS WITHOUT VS (NO GROUND TRUTH)
+--------------------------------------------------------------------------------
+
+well_without_vs_0:
+  Number of predictions: 1286
+  VS range: [1.022, 1.488]
+  VS mean: 1.225
+  VS std: 0.114
+
+well_without_vs_1:
+  Number of predictions: 2596
+  VS range: [0.984, 1.584]
+  VS mean: 1.272
+  VS std: 0.125
+
+--------------------------------------------------------------------------------
+VALIDATION ON WELLS WITH VS (HAS GROUND TRUTH)
+--------------------------------------------------------------------------------
+
+well_with_vs_0:
+  Number of predictions: 986
+  R²: 0.6207
+  RMSE: 0.1232
+  MSE: 0.0152
+  MAE: 0.0975
+
+well_with_vs_1:
+  Number of predictions: 1186
+  R²: -0.1325
+  RMSE: 0.0921
+  MSE: 0.0085
+  MAE: 0.0770
+
+well_with_vs_2:
+  Number of predictions: 1136
+  R²: 0.4615
+  RMSE: 0.0864
+  MSE: 0.0075
+  MAE: 0.0640
+
+well_with_vs_3:
+  Number of predictions: 1576
+  R²: 0.6780
+  RMSE: 0.1042
+  MSE: 0.0109
+  MAE: 0.0881
+
+well_with_vs_4:
+  Number of predictions: 1365
+  R²: 0.5955
+  RMSE: 0.0921
+  MSE: 0.0085
+  MAE: 0.0694
+
+AVERAGE METRICS ACROSS ALL VALIDATION WELLS:
+  R²: 0.4446 ± 0.2972
+  RMSE: 0.0996 ± 0.0131
+  MSE: 0.0101 ± 0.0028
+  MAE: 0.0792 ± 0.0122
+
+================================================================================
+END OF REPORT
+================================================================================

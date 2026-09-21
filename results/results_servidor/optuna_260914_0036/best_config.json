@@ -1,0 +1,48 @@
+{
+  "petrobras_all_measured_vs": {
+    "cluster": "petrobras_all_measured_vs",
+    "cluster_wells": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "features": [
+      "VP",
+      "RHO",
+      "POROSIDADE",
+      "SATURACAO"
+    ],
+    "hyperparams": {
+      "embed_dim": 160,
+      "num_heads": 8,
+      "num_blocks": 2,
+      "dropout": 0.4474594211590665,
+      "learning_rate": 0.00011758545456048372,
+      "batch_size": 64,
+      "scheduler_type": "cosine",
+      "criterion_type": "huber",
+      "optimizer_type": "adam",
+      "weight_decay": 0.0004210257422087639
+    },
+    "avg_r2": 0.11991599798202515,
+    "std_r2": 0.4013435457590619,
+    "best_fold_r2": 0.565334677696228,
+    "test_metrics": {
+      "R2": 0.565334677696228,
+      "RMSE": 0.13185034779100258,
+      "MSE": 0.017384514212608337,
+      "MAE": 0.10531701892614365,
+      "r2": 0.565334677696228,
+      "rmse": 0.13185034779100258,
+      "mse": 0.017384514212608337,
+      "mae": 0.10531701892614365,
+      "loss": 0.009045893762959167
+    },
+    "model_path": "",
+    "scaler_path": "",
+    "model_id": "optuna_trial_27",
+    "n_trials": 30
+  }
+}
