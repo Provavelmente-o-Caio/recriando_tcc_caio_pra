@@ -1345,6 +1345,7 @@ namespace missing_data
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error
                     );
+                    return;
                 }
 
                 if (!File.Exists(predictionOutputPath))
@@ -1373,6 +1374,11 @@ namespace missing_data
                     + predictionOutput.WellCount
                     + " wells. Results: "
                     + predictionOutput.PredictionsFile);
+
+                using (var resultsForm = new PredictionResultsForm(predictionOutputPath))
+                {
+                    resultsForm.ShowDialog(this);
+                }
             }
             catch (OperationCanceledException)
             {
