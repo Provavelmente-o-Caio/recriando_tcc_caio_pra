@@ -145,7 +145,15 @@ namespace missing_data
         }
 
 
-        public static async Task<PythonProcessResult> RunPythonPredictionAsync(string pythonExe, string runnerPath, string inputPath, string outputPath, string clustersPath, string trainedModelFolder)
+        public static async Task<PythonProcessResult> RunPythonPredictionAsync(
+            string pythonExe,
+            string runnerPath,
+            string inputPath,
+            string outputPath,
+            string clustersPath,
+            string trainedModelFolder,
+            CancellationToken cancellationToken = default(CancellationToken),
+            Action<string, bool> outputCallback = null)
         {
             if (!File.Exists(pythonExe))
             {
@@ -180,7 +188,7 @@ namespace missing_data
                 CreateNoWindow = true
             };
 
-            return await RunProcessAsync(psi, CancellationToken.None, null);
+            return await RunProcessAsync(psi, cancellationToken, outputCallback);
         }
 
         private static async Task<PythonProcessResult> RunProcessAsync(

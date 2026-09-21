@@ -91,9 +91,12 @@ namespace missing_data
         private TextBox statusTextBox;
         private TextBox trainingStatusTextBox;
         private Button predictionButton;
+        private Button cancelPredictionButton;
+        private ProgressBar predictionProgressBar;
         private Button trainingButton;
         private Button cancelTrainingButton;
         private ProgressBar trainingProgressBar;
+        private CancellationTokenSource predictionCancellationSource;
         private CancellationTokenSource trainingCancellationSource;
         private ComboBox vsComboBox;
         private ComboBox vpComboBox;
@@ -442,12 +445,50 @@ namespace missing_data
             {
                 Text = "Run prediction",
                 Height = 36,
-                Dock = DockStyle.Bottom
+                Dock = DockStyle.Fill
+            };
+
+            cancelPredictionButton = new Button
+            {
+                Text = "Cancel",
+                Height = 36,
+                Dock = DockStyle.Fill,
+                Enabled = false
             };
 
             predictionButton.Click += async (sender, e) => await RunButton_ClickAsync(wellsListBoxPrediction);
+            cancelPredictionButton.Click += (sender, e) =>
+            {
+                predictionCancellationSource?.Cancel();
+                AppendStatus("Prediction cancellation requested...");
+                cancelPredictionButton.Enabled = false;
+            };
 
-            group.Controls.Add(predictionButton);
+            var actionPanel = new TableLayoutPanel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 52,
+                ColumnCount = 2,
+                RowCount = 2
+            };
+            actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70));
+            actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
+            actionPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            actionPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 10));
+            actionPanel.Controls.Add(predictionButton, 0, 0);
+            actionPanel.Controls.Add(cancelPredictionButton, 1, 0);
+
+            predictionProgressBar = new ProgressBar
+            {
+                Style = ProgressBarStyle.Marquee,
+                MarqueeAnimationSpeed = 30,
+                Dock = DockStyle.Fill,
+                Visible = false
+            };
+            actionPanel.Controls.Add(predictionProgressBar, 0, 1);
+            actionPanel.SetColumnSpan(predictionProgressBar, 2);
+
+            group.Controls.Add(actionPanel);
             group.Controls.Add(layout);
 
             return group;
@@ -1102,6 +1143,13 @@ namespace missing_data
                     return;
                 }
 
+                predictionCancellationSource = new CancellationTokenSource();
+                CancellationToken cancellationToken = predictionCancellationSource.Token;
+                cancelPredictionButton.Enabled = true;
+                predictionProgressBar.Visible = true;
+                predictionProgressBar.BringToFront();
+                predictionProgressBar.Refresh();
+
                 var selectedPredictionConfiguration = getCurveMapping();
                 var pythonConfiguration = GetPythonConfiguration();
 
@@ -1178,7 +1226,8 @@ namespace missing_data
                     runnerPath,
                     "analyze",
                     inputPath,
-                    analysisOutputPath
+                    analysisOutputPath,
+                    cancellationToken
                 );
 
                 if (!string.IsNullOrWhiteSpace(result.Stdout))
@@ -1272,7 +1321,9 @@ namespace missing_data
                         inputPath,
                         predictionOutputPath,
                         clustersPath,
-                        trainedModelFolderTextBox.Text
+                        trainedModelFolderTextBox.Text,
+                        cancellationToken,
+                        (line, isError) => AppendStatus(line)
                     );
 
                 if (!string.IsNullOrWhiteSpace(result_clusters.Stdout))
@@ -1324,6 +1375,10 @@ namespace missing_data
                     + " wells. Results: "
                     + predictionOutput.PredictionsFile);
             }
+            catch (OperationCanceledException)
+            {
+                AppendStatus("Prediction cancelled.");
+            }
             catch (Exception ex)
             {
                 AppendStatus("ERROR: " + ex.Message);
@@ -1338,6 +1393,10 @@ namespace missing_data
             finally
             {
                 predictionButton.Enabled = true;
+                cancelPredictionButton.Enabled = false;
+                predictionProgressBar.Visible = false;
+                predictionCancellationSource?.Dispose();
+                predictionCancellationSource = null;
             }
         }
 
@@ -1345,6 +1404,14 @@ namespace missing_data
         {
             if (statusTextBox == null)
             {
+                return;
+            }
+
+            if (statusTextBox.InvokeRequired)
+            {
+                statusTextBox.BeginInvoke(
+                    new Action<string>(AppendStatus),
+                    message);
                 return;
             }
 
