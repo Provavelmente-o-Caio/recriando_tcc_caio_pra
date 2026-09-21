@@ -10,6 +10,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Newtonsoft.Json.Linq;
 
 namespace missing_data
 {
@@ -460,7 +461,19 @@ namespace missing_data
 
                 if (dialog.ShowDialog() == DialogResult.OK)
                 {
+                    string validationError = ValidateTrainedModelFolder(dialog.SelectedPath);
+                    if (!string.IsNullOrWhiteSpace(validationError))
+                    {
+                        MessageBox.Show(
+                            validationError,
+                            "Invalid trained model folder",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning);
+                        return;
+                    }
+
                     trainedModelFolderTextBox.Text = dialog.SelectedPath;
+                    AppendStatus("Validated trained model folder: " + dialog.SelectedPath);
                 }
             }
         }
@@ -1058,6 +1071,18 @@ namespace missing_data
                 return;
             }
 
+            string modelValidationError = ValidateTrainedModelFolder(
+                trainedModelFolderTextBox.Text);
+            if (!string.IsNullOrWhiteSpace(modelValidationError))
+            {
+                MessageBox.Show(
+                    modelValidationError,
+                    "Invalid trained model folder",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
             try
             {
                 predictionButton.Enabled = false;
@@ -1325,6 +1350,106 @@ namespace missing_data
 
             statusTextBox.AppendText(
                 Environment.NewLine + "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + message);
+        }
+
+        private string ValidateTrainedModelFolder(string folderPath)
+        {
+            if (string.IsNullOrWhiteSpace(folderPath))
+                return "Select a trained experiment folder.";
+
+            string experimentDirectory;
+            try
+            {
+                experimentDirectory = Path.GetFullPath(folderPath);
+            }
+            catch (ArgumentException ex)
+            {
+                return "The selected model path is invalid: " + ex.Message;
+            }
+
+            if (!Directory.Exists(experimentDirectory))
+                return "The selected model folder does not exist.";
+
+            string bestConfigPath = Path.Combine(
+                experimentDirectory,
+                "best_config.json");
+            string finalModelDirectory = Path.Combine(
+                experimentDirectory,
+                "final_model");
+
+            if (!File.Exists(bestConfigPath))
+            {
+                if (string.Equals(
+                    Path.GetFileName(experimentDirectory),
+                    "final_model",
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    return "Select the experiment folder that contains this final_model folder, "
+                        + "not the final_model folder itself.";
+                }
+
+                return "The selected folder does not contain best_config.json.";
+            }
+
+            if (!Directory.Exists(finalModelDirectory))
+                return "The selected folder does not contain a final_model subfolder.";
+
+            JObject bestConfig;
+            try
+            {
+                bestConfig = JObject.Parse(File.ReadAllText(bestConfigPath));
+            }
+            catch (JsonException ex)
+            {
+                return "best_config.json could not be read: " + ex.Message;
+            }
+            catch (IOException ex)
+            {
+                return "best_config.json could not be read: " + ex.Message;
+            }
+
+            var clusterProperties = bestConfig.Properties().ToList();
+            if (clusterProperties.Count == 0)
+                return "best_config.json does not contain any cluster configuration.";
+
+            var invalidClusters = clusterProperties
+                .Where(property =>
+                    property.Value.Type != JTokenType.Object
+                    || property.Value["features"] == null
+                    || property.Value["hyperparams"] == null)
+                .Select(property => property.Name)
+                .ToList();
+
+            if (invalidClusters.Count > 0)
+            {
+                return "best_config.json has invalid cluster configuration for: "
+                    + string.Join(", ", invalidClusters)
+                    + ". Each cluster must contain features and hyperparams.";
+            }
+
+            var missingArtifacts = new List<string>();
+            foreach (var property in clusterProperties)
+            {
+                string modelPath = Path.Combine(
+                    finalModelDirectory,
+                    "final_model_cluster_" + property.Name + ".pth");
+                string scalerPath = Path.Combine(
+                    finalModelDirectory,
+                    "final_scaler_cluster_" + property.Name + ".pkl");
+
+                if (!File.Exists(modelPath))
+                    missingArtifacts.Add(Path.GetFileName(modelPath));
+                if (!File.Exists(scalerPath))
+                    missingArtifacts.Add(Path.GetFileName(scalerPath));
+            }
+
+            if (missingArtifacts.Count > 0)
+            {
+                return "The selected model is incomplete. Missing artifacts: "
+                    + string.Join(", ", missingArtifacts);
+            }
+
+            return null;
         }
 
         private void AppendTrainingStatus(string message)
