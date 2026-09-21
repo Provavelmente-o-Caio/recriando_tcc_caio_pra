@@ -77,6 +77,14 @@ namespace missing_data
         public string TargetFeature { get; set; }
     }
 
+    public class UnitConfiguration
+    {
+        public string VP { get; set; }
+        public string VS { get; set; }
+        public string PythonVelocityUnit { get; set; }
+        public string PayloadVelocityUnit { get; set; }
+    }
+
     public partial class MainForm : Form
     {
         // List boxes
@@ -107,6 +115,8 @@ namespace missing_data
         private ComboBox clayComboBox;
         private ComboBox caliperComboBox;
         private TextBox outputCurveNameTextBox;
+        private ComboBox vpUnitComboBox;
+        private ComboBox vsUnitComboBox;
 
         private NumericUpDown sequenceLengthNumBox;
         private NumericUpDown maskValueNumBox;
@@ -324,8 +334,48 @@ namespace missing_data
 
             curveMappingGroup.Controls.Add(curveLayout);
 
-            configurationPanel.Controls.Add(curveMappingGroup);
-            configurationPanel.Controls.Add(pythonConfigGroup);
+            var unitsLayout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                AutoSize = true,
+                ColumnCount = 2
+            };
+            unitsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+            unitsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+            vpUnitComboBox = AddUnitRow(unitsLayout, "VP unit:", 0);
+            vsUnitComboBox = AddUnitRow(unitsLayout, "VS unit:", 1);
+
+            var unitsGroup = new GroupBox
+            {
+                Text = "Velocity units",
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                Padding = new Padding(12)
+            };
+            unitsGroup.Controls.Add(unitsLayout);
+
+            var configurationTabs = new TabControl
+            {
+                Dock = DockStyle.Fill
+            };
+            var generalTab = new TabPage("General");
+            var generalPanel = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                AutoSize = true
+            };
+            generalPanel.Controls.Add(curveMappingGroup);
+            generalPanel.Controls.Add(pythonConfigGroup);
+            generalTab.Controls.Add(generalPanel);
+
+            var unitsTab = new TabPage("Units");
+            unitsTab.Controls.Add(unitsGroup);
+
+            configurationTabs.TabPages.Add(generalTab);
+            configurationTabs.TabPages.Add(unitsTab);
+            configurationPanel.Controls.Add(configurationTabs);
 
             return configurationPanel;
         }
@@ -664,6 +714,31 @@ namespace missing_data
             layout.Controls.Add(combo, 1, row);
 
             combo.Items.AddRange(LoadLogHeaders());
+
+            return combo;
+        }
+
+        private ComboBox AddUnitRow(TableLayoutPanel layout, string label, int row)
+        {
+            var combo = new ComboBox
+            {
+                Dock = DockStyle.Fill,
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            combo.Items.Add("m/s");
+            combo.Items.Add("km/s");
+            combo.SelectedItem = "m/s";
+
+            layout.Controls.Add(
+                new Label
+                {
+                    Text = label,
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    Dock = DockStyle.Fill
+                },
+                0,
+                row);
+            layout.Controls.Add(combo, 1, row);
 
             return combo;
         }
@@ -1770,6 +1845,7 @@ namespace missing_data
 
         private object BuildClusterAnalysisPayload(List<Borehole> selectedWells, Dictionary<String, String> curveMapping, PythonConfiguration pythonConfiguration)
         {
+            var units = GetUnitConfiguration();
             var wells = new List<object>();
 
             foreach (var borehole in selectedWells)
@@ -1777,28 +1853,37 @@ namespace missing_data
                 wells.Add(new
                 {
                     name = borehole.Name,
-                    logs = ExtractWellLogSamples(borehole)
+                    logs = ExtractWellLogSamples(borehole, curveMapping, units)
                 });
             }
 
             return new
             {
                 curveMapping,
+                units,
                 wells,
                 pythonConfiguration
             };
         }
 
 
-        private List<Object> ExtractWellLogSamples(Borehole borehole)
+        private List<Object> ExtractWellLogSamples(
+            Borehole borehole,
+            Dictionary<String, String> curveMapping,
+            UnitConfiguration units)
         {
             var logs = new List<Object>();
 
             foreach (var log in borehole.Logs.WellLogs)
             {
+                string canonicalName = curveMapping
+                    .Where(pair => string.Equals(pair.Value, log.Name, StringComparison.OrdinalIgnoreCase))
+                    .Select(pair => pair.Key)
+                    .FirstOrDefault();
+                double conversionFactor = GetConversionFactor(canonicalName, units);
                 var samples = log.Samples.Select(s => new {
                     md = s.MD,
-                    value = s.Value
+                    value = s.Value * conversionFactor
                 }).ToList();
 
                 logs.Add(new
@@ -1809,6 +1894,49 @@ namespace missing_data
             }
 
             return logs;
+        }
+
+        private UnitConfiguration GetUnitConfiguration()
+        {
+            return new UnitConfiguration
+            {
+                VP = GetSelectedUnit(vpUnitComboBox, "VP"),
+                VS = GetSelectedUnit(vsUnitComboBox, "VS"),
+                PythonVelocityUnit = "km/s",
+                PayloadVelocityUnit = "km/s"
+            };
+        }
+
+        private string GetSelectedUnit(ComboBox comboBox, string label)
+        {
+            if (comboBox == null || comboBox.SelectedItem == null)
+                throw new InvalidOperationException(label + " unit must be selected.");
+
+            return comboBox.SelectedItem.ToString();
+        }
+
+        private double GetConversionFactor(string canonicalName, UnitConfiguration units)
+        {
+            if (!string.Equals(canonicalName, "VP", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(canonicalName, "VS", StringComparison.OrdinalIgnoreCase))
+                return 1.0;
+
+            string sourceUnit = string.Equals(canonicalName, "VP", StringComparison.OrdinalIgnoreCase)
+                ? units.VP
+                : units.VS;
+
+            if (string.Equals(sourceUnit, units.PythonVelocityUnit, StringComparison.OrdinalIgnoreCase))
+                return 1.0;
+            if (string.Equals(sourceUnit, "m/s", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(units.PythonVelocityUnit, "km/s", StringComparison.OrdinalIgnoreCase))
+                return 0.001;
+            if (string.Equals(sourceUnit, "km/s", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(units.PythonVelocityUnit, "m/s", StringComparison.OrdinalIgnoreCase))
+                return 1000.0;
+
+            throw new InvalidOperationException(
+                "Unsupported velocity conversion from " + sourceUnit
+                + " to " + units.PythonVelocityUnit + ".");
         }
 
 

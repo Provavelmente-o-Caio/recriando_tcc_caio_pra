@@ -134,6 +134,7 @@ class Predictor:
         curve_mapping = validate_curve_mapping(payload)
         wells = validate_wells(payload)
         config = validate_config(payload)
+        units = validate_units(payload)
 
         wells_dfs = wells_to_dataframes(wells, curve_mapping)
         wells_dfs = [add_derived_features(df) for df in wells_dfs]
@@ -157,6 +158,7 @@ class Predictor:
             "target_feature": config.get("TargetFeature"),
             "clusters": recommended_clusters,
             "labeled_well_indices": labeled_well_indices,
+            "units": units,
         }
 
         return (
@@ -180,6 +182,7 @@ class Predictor:
 
         curve_mapping = validate_curve_mapping(payload)
         wells = validate_wells(payload)
+        validate_units(payload)
 
         wells_dfs = wells_to_dataframes(wells, curve_mapping)
         wells_dfs = [add_derived_features(df) for df in wells_dfs]
@@ -321,6 +324,7 @@ class Predictor:
             experiment_dir=experiment_dir,
             final_output_dir=final_output_dir,
             all_results=all_results,
+            units=base_config.get("units"),
         )
 
     def _write_prediction_result(
@@ -329,6 +333,7 @@ class Predictor:
         experiment_dir: str,
         final_output_dir: str,
         all_results: dict[str, dict[str, Any]],
+        units: dict[str, str] | None,
     ) -> None:
         """Write the machine-readable contract consumed by the Petrel UI."""
         output_directory = os.path.dirname(output_path)
@@ -385,6 +390,7 @@ class Predictor:
                 os.path.join(final_output_dir, "SUMMARY_REPORT.txt")
             ),
             "plots_dir": os.path.abspath(os.path.join(final_output_dir, "plots")),
+            "units": units,
             "well_count": len(wells),
             "wells_with_ground_truth": sum(
                 1 for well in wells if well["has_ground_truth"]
@@ -587,6 +593,36 @@ def validate_config(payload: dict[str, Any]):
         raise ValueError(f"config must be a dictionary: {config}")
 
     return config
+
+
+def validate_units(payload: dict[str, Any]) -> dict[str, str]:
+    units = payload.get("units")
+    if not isinstance(units, dict):
+        raise ValueError(
+            "units must be provided by the interface. Configure VP and VS units "
+            "before exporting the payload."
+        )
+
+    payload_unit = units.get("PayloadVelocityUnit")
+    python_unit = units.get("PythonVelocityUnit")
+    if payload_unit != "km/s" or python_unit != "km/s":
+        raise ValueError(
+            "Velocity values in the payload must be converted to km/s before "
+            f"processing (payload={payload_unit}, python={python_unit})."
+        )
+
+    for curve in ("VP", "VS"):
+        if units.get(curve) not in ("m/s", "km/s"):
+            raise ValueError(
+                f"Unsupported source unit for {curve}: {units.get(curve)}"
+            )
+
+    return {
+        "VP": str(units["VP"]),
+        "VS": str(units["VS"]),
+        "PythonVelocityUnit": str(python_unit),
+        "PayloadVelocityUnit": str(payload_unit),
+    }
 
 
 def validate_log_structure(well: dict[str, Any]):
