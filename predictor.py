@@ -280,9 +280,10 @@ class Predictor:
             wells_with_vs, target_feature=base_config["target_feature"]
         )
         if not trained_clusters:
-            print("\nNo saved final models found; training from scratch...")
-            trained_clusters = trainer.train_final_model(
-                wells_with_vs, target_feature=base_config["target_feature"]
+            raise ValueError(
+                "No final models were loaded from "
+                f"{final_output_dir}. Check that the selected experiment contains "
+                "final_model_cluster_<cluster>.pth and matching scaler files."
             )
         train_elapsed = time.perf_counter() - train_start
         print(

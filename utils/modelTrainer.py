@@ -356,7 +356,14 @@ class FinalModelTrainer:
         self, wells_with_vs: list[pl.DataFrame], target_feature: str = "VS"
     ) -> dict:
         """Load saved final models and scalers from disk instead of retraining."""
-        clusters = self.base_config.get("clusters", {})
+        if isinstance(self.best_config, dict) and "features" not in self.best_config:
+            clusters = {
+                cluster_name: config
+                for cluster_name, config in self.best_config.items()
+                if isinstance(config, dict)
+            }
+        else:
+            clusters = self.base_config.get("clusters", {})
         device = self._get_device()
         loaded_clusters = {}
 

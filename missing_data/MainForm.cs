@@ -906,6 +906,7 @@ namespace missing_data
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error
                     );
+                    return;
                 }
 
                 if (!File.Exists(outputPath))
@@ -1328,21 +1329,19 @@ namespace missing_data
 
                 if (!string.IsNullOrWhiteSpace(result_clusters.Stdout))
                 {
-                    // AppendStatus(result.Stdout);
+                    AppendStatus(result_clusters.Stdout);
                 }
 
                 if (!string.IsNullOrWhiteSpace(result_clusters.Stderr))
                 {
-                    // AppendStatus(result.Stderr);
+                    AppendStatus(result_clusters.Stderr);
                 }
 
                 if (result_clusters.ExitCode != 0)
                 {
-                    // AppendStatus(result.Stderr);
-
                     MessageBox.Show(
                         result_clusters.Stderr,
-                        "Python analysis failed",
+                        "Prediction failed",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error
                     );
