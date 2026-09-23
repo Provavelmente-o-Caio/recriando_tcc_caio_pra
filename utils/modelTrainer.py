@@ -586,6 +586,7 @@ class FinalModelTrainer:
             result_entry: dict[str, Any] = {
                 "predictions": predictions,
                 "depths": depths,
+                "original_data": well_df.to_dicts(),
                 "has_ground_truth": has_ground_truth,
                 "cluster": cluster_name,
             }
