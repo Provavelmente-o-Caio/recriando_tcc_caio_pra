@@ -554,7 +554,28 @@ namespace missing_data
                 return units[column].ToString();
             }
 
-            return "_";
+            switch (column.Trim().ToUpperInvariant())
+            {
+                case "DEPT":
+                    return "m";
+                case "CALIPER":
+                    return "m";
+                case "GR":
+                    return "gAPI";
+                case "POROSIDADE":
+                case "ARGILOSIDADE":
+                case "SATURACAO":
+                    return "m3/m3";
+                case "VP":
+                case "VS":
+                    return "km/s";
+                case "RHO":
+                    return "g/cm3";
+                case "ACOUSTIC_IMP":
+                    return "km/s*g/cm3";
+                default:
+                    return "unitless";
+            }
         }
 
         private string GetMetadataValue(JObject data, string key, string fallback)
