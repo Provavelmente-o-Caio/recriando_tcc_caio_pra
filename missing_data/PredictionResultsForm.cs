@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Windows.Forms;
 
 namespace missing_data
@@ -368,7 +369,10 @@ namespace missing_data
 
                     string fileName = SanitizeFileName(wellId) + ".las";
                     string outputPath = Path.Combine(dialog.SelectedPath, fileName);
-                    File.WriteAllText(outputPath, BuildLasContent(wellId, data));
+                    File.WriteAllText(
+                        outputPath,
+                        BuildLasContent(wellId, data),
+                        new UTF8Encoding(false));
                     exported.Add(fileName);
                 }
 
@@ -424,7 +428,9 @@ namespace missing_data
                 .Where(column => !string.Equals(column, "DEPT",
                     StringComparison.OrdinalIgnoreCase))
                 .ToList();
+
             var rows = new List<string>();
+            var validDepths = new List<double>();
             foreach (JObject originalRow in originalData.OfType<JObject>())
             {
                 JToken depthToken = originalRow["DEPT"];
@@ -432,6 +438,7 @@ namespace missing_data
                     continue;
 
                 double depth = depthToken.Value<double>();
+                validDepths.Add(depth);
                 var values = new List<string>
                 {
                     FormatLasValue(depth)
@@ -452,38 +459,126 @@ namespace missing_data
             if (rows.Count == 0)
                 throw new InvalidDataException("No depth samples for " + wellId);
 
-            double start = originalData[0]["DEPT"].Value<double>();
-            double stop = originalData[originalData.Count - 1]["DEPT"].Value<double>();
+            double start = validDepths[0];
+            double stop = validDepths[validDepths.Count - 1];
+            double step = GetDepthStep(validDepths);
             var curveHeaders = new List<string>
             {
-                " DEPT.M                 : DEPTH"
+                "DEPT .m                              : DEPTH"
             };
             curveHeaders.AddRange(originalColumns.Select(column =>
-                " " + column + ".               : ORIGINAL CURVE"));
-            curveHeaders.Add(" " + outputCurve + "." + outputUnit
-                + " : PREDICTED VS");
+                BuildCurveHeader(column, GetCurveUnit(column), "ORIGINAL CURVE")));
+            curveHeaders.Add(BuildCurveHeader(outputCurve, outputUnit, "PREDICTED VS"));
 
-            return "~Version" + Environment.NewLine
-                + " VERS.                 2.0 : CWLS LOG ASCII STANDARD - VERSION 2.0"
+            var wellHeaders = new List<string>
+            {
+                BuildWellHeader("STRT", "m", start, "START DEPTH"),
+                BuildWellHeader("STOP", "m", stop, "STOP DEPTH"),
+                BuildWellHeader("STEP", "m", step, "STEP DEPTH"),
+                BuildWellHeader("NULL", "", -999.25, "NULL VALUE"),
+                BuildTextWellHeader("COMP", "", GetMetadataValue(data, "COMP", ""), "COMPANY"),
+                BuildTextWellHeader("WELL", "", wellId, "WELL"),
+                BuildTextWellHeader("LOC", "", GetMetadataValue(data, "LOC", ""), "LOCATION"),
+                BuildTextWellHeader("FLD", "", GetMetadataValue(data, "FLD", ""), "FIELD")
+            };
+
+            return "# LAS format log file from Petrel" + Environment.NewLine
+                + "# Project units are specified as depth units" + Environment.NewLine
+                + "#==================================================================" + Environment.NewLine
+                + "~VERSION INFORMATION" + Environment.NewLine
+                + "VERS.  2.0 : CWLS LOG ASCII STANDARD - VERSION 2.0" + Environment.NewLine
+                + "WRAP.  NO   : ONE LINE PER DEPTH STEP" + Environment.NewLine
+                + "#==================================================================" + Environment.NewLine
+                + "~WELL INFORMATION" + Environment.NewLine
+                + "#MNEM .UNIT      DATA                 :DESCRIPTION OF MNEMONIC" + Environment.NewLine
+                + "#----------      -------------------  -------------------------------" + Environment.NewLine
+                + string.Join(Environment.NewLine, wellHeaders)
                 + Environment.NewLine
-                + " WRAP.                  NO  : ONE LINE PER DEPTH STEP"
-                + Environment.NewLine
-                + "~Well" + Environment.NewLine
-                + " WELL.                  " + wellId + " : WELL NAME"
-                + Environment.NewLine
-                + "~Curve Information" + Environment.NewLine
+                + "#==================================================================" + Environment.NewLine
+                + "~CURVE INFORMATION" + Environment.NewLine
+                + "#MNEM.UNIT                                              : CURVE DESCRIPTION" + Environment.NewLine
                 + string.Join(Environment.NewLine, curveHeaders)
                 + Environment.NewLine
-                + "~Parameter Information" + Environment.NewLine
-                + " STRT.M                 " + start.ToString("0.######", CultureInfo.InvariantCulture)
-                + " : START DEPTH"
-                + Environment.NewLine
-                + " STOP.M                 " + stop.ToString("0.######", CultureInfo.InvariantCulture)
-                + " : STOP DEPTH"
-                + Environment.NewLine
+                + "#==================================================================" + Environment.NewLine
+                + "~PARAMETER INFORMATION" + Environment.NewLine
+                + "#MNEM .UNIT      DATA                 :DESCRIPTION OF MNEMONIC" + Environment.NewLine
+                + "NULL .          -999.25              :NULL VALUE" + Environment.NewLine
+                + "~OTHER" + Environment.NewLine
+                + "# Generated by the Petrel missing-data prediction plugin." + Environment.NewLine
                 + "~ASCII" + Environment.NewLine
                 + string.Join(Environment.NewLine, rows)
                 + Environment.NewLine;
+        }
+
+        private string BuildCurveHeader(string mnemonic, string unit, string description)
+        {
+            return " " + mnemonic + " ." + unit.PadRight(18)
+                + " : " + description;
+        }
+
+        private string BuildWellHeader(
+            string mnemonic,
+            string unit,
+            double value,
+            string description)
+        {
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "{0,-5} .{1,-8} {2,18} : {3}",
+                mnemonic,
+                unit,
+                value.ToString("0.######", CultureInfo.InvariantCulture),
+                description);
+        }
+
+        private string BuildTextWellHeader(
+            string mnemonic,
+            string unit,
+            string value,
+            string description)
+        {
+            return string.Format(
+                "{0,-5} .{1,-8} {2,-18} : {3}",
+                mnemonic,
+                unit,
+                value ?? string.Empty,
+                description);
+        }
+
+        private string GetCurveUnit(string column)
+        {
+            var units = result["units"] as JObject;
+            if (units != null && units[column] != null
+                && !string.IsNullOrWhiteSpace(units[column].ToString()))
+            {
+                return units[column].ToString();
+            }
+
+            return "_";
+        }
+
+        private string GetMetadataValue(JObject data, string key, string fallback)
+        {
+            var metadata = data["metadata"] as JObject;
+            if (metadata != null && metadata[key] != null)
+                return metadata[key].ToString();
+
+            if (data[key] != null)
+                return data[key].ToString();
+
+            return fallback;
+        }
+
+        private double GetDepthStep(List<double> depths)
+        {
+            for (int index = 1; index < depths.Count; index++)
+            {
+                double difference = depths[index] - depths[index - 1];
+                if (Math.Abs(difference) > double.Epsilon)
+                    return difference;
+            }
+
+            return 0.0;
         }
 
         private string FormatLasValue(JToken value)
