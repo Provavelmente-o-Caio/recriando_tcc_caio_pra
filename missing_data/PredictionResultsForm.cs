@@ -565,7 +565,7 @@ namespace missing_data
                 case "POROSIDADE":
                 case "ARGILOSIDADE":
                 case "SATURACAO":
-                    return "fract";
+                    return "m3/m3";
                 case "VP":
                 case "VS":
                     return "km/s";
@@ -593,7 +593,7 @@ namespace missing_data
                 return "API";
             if (string.Equals(normalized, "m3/m3", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(normalized, "fract", StringComparison.OrdinalIgnoreCase))
-                return "fract";
+                return "m3/m3";
             if (string.Equals(normalized, "km/s*g/cm3", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(normalized, "g/cm3*km/s", StringComparison.OrdinalIgnoreCase))
                 return "g/cm3*km/s";
@@ -610,7 +610,7 @@ namespace missing_data
             if (upperColumn == "POROSIDADE"
                 || upperColumn == "ARGILOSIDADE"
                 || upperColumn == "SATURACAO")
-                return "fract";
+                return "m3/m3";
 
             return normalized;
         }
