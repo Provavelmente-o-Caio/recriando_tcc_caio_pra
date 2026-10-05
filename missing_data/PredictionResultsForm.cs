@@ -551,7 +551,7 @@ namespace missing_data
             if (units != null && units[column] != null
                 && !string.IsNullOrWhiteSpace(units[column].ToString()))
             {
-                return units[column].ToString();
+                return NormalizePetrelUnit(column, units[column].ToString());
             }
 
             switch (column.Trim().ToUpperInvariant())
@@ -561,21 +561,58 @@ namespace missing_data
                 case "CALIPER":
                     return "m";
                 case "GR":
-                    return "gAPI";
+                    return "API";
                 case "POROSIDADE":
                 case "ARGILOSIDADE":
                 case "SATURACAO":
-                    return "m3/m3";
+                    return "fract";
                 case "VP":
                 case "VS":
                     return "km/s";
                 case "RHO":
+                case "RHO1":
                     return "g/cm3";
-                case "ACOUSTIC_IMP":
-                    return "km/s*g/cm3";
                 default:
+                    string upperColumn = column.Trim().ToUpperInvariant();
+                    if (upperColumn.StartsWith("GR_", StringComparison.Ordinal))
+                        return "API";
+                    if (upperColumn.StartsWith("RHO", StringComparison.Ordinal))
+                        return "g/cm3";
+                    if (upperColumn.StartsWith("VP", StringComparison.Ordinal)
+                        || upperColumn.StartsWith("VS", StringComparison.Ordinal))
+                        return "km/s";
                     return "unitless";
             }
+        }
+
+        private string NormalizePetrelUnit(string column, string unit)
+        {
+            string normalized = unit.Trim();
+            if (string.Equals(normalized, "gAPI", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(normalized, "API", StringComparison.OrdinalIgnoreCase))
+                return "API";
+            if (string.Equals(normalized, "m3/m3", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(normalized, "fract", StringComparison.OrdinalIgnoreCase))
+                return "fract";
+            if (string.Equals(normalized, "km/s*g/cm3", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(normalized, "g/cm3*km/s", StringComparison.OrdinalIgnoreCase))
+                return "g/cm3*km/s";
+
+            string upperColumn = column.Trim().ToUpperInvariant();
+            if (upperColumn.StartsWith("GR_", StringComparison.Ordinal)
+                || upperColumn == "GR")
+                return "API";
+            if (upperColumn.StartsWith("RHO", StringComparison.Ordinal))
+                return "g/cm3";
+            if (upperColumn.StartsWith("VP", StringComparison.Ordinal)
+                || upperColumn.StartsWith("VS", StringComparison.Ordinal))
+                return "km/s";
+            if (upperColumn == "POROSIDADE"
+                || upperColumn == "ARGILOSIDADE"
+                || upperColumn == "SATURACAO")
+                return "fract";
+
+            return normalized;
         }
 
         private string GetMetadataValue(JObject data, string key, string fallback)
