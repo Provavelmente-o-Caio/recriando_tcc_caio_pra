@@ -927,6 +927,7 @@ namespace missing_data
                         jobId,
                         trainingProgressBar,
                         AppendStatus,
+                        null,
                         "train");
 
                 if (result_clusters.ExitCode != 0)
@@ -1257,6 +1258,7 @@ namespace missing_data
                         jobId,
                         predictionProgressBar,
                         AppendStatus,
+                        null,
                         "predict");
 
                 if (result_clusters.ExitCode != 0)
@@ -1350,6 +1352,7 @@ namespace missing_data
                 jobId,
                 progressBar,
                 appendStatus,
+                null,
                 "analyze");
 
             if (result.ExitCode != 0)
