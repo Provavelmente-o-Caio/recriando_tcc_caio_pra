@@ -5,6 +5,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace missing_data
 {
@@ -13,6 +14,41 @@ namespace missing_data
         public int ExitCode { get; set; }
         public string Stdout { get; set; }
         public string Stderr { get; set; }
+        public PythonExecutionContract ExecutionContract { get; set; }
+    }
+
+    public class PythonExecutionContract
+    {
+        [JsonProperty("schema_version")]
+        public int SchemaVersion { get; set; }
+        [JsonProperty("job_id")]
+        public string JobId { get; set; }
+        [JsonProperty("operation")]
+        public string Operation { get; set; }
+        [JsonProperty("status")]
+        public string Status { get; set; }
+        [JsonProperty("message")]
+        public string Message { get; set; }
+        [JsonProperty("error_type")]
+        public string ErrorType { get; set; }
+    }
+
+    public class PythonProgressContract
+    {
+        [JsonProperty("schema_version")]
+        public int SchemaVersion { get; set; }
+        [JsonProperty("job_id")]
+        public string JobId { get; set; }
+        [JsonProperty("operation")]
+        public string Operation { get; set; }
+        [JsonProperty("status")]
+        public string Status { get; set; }
+        [JsonProperty("percent")]
+        public double Percent { get; set; }
+        [JsonProperty("stage")]
+        public string Stage { get; set; }
+        [JsonProperty("message")]
+        public string Message { get; set; }
     }
 
     public class PythonRuntimeService
@@ -33,6 +69,16 @@ namespace missing_data
         public string PythonExecutable { get { return pythonExecutable; } }
         public string PredictorScript { get { return predictorScript; } }
         public string OptunaScript { get { return optunaScript; } }
+
+        public string GetExecutionContractPath(string outputPath)
+        {
+            return GetContractPath(outputPath);
+        }
+
+        public string GetProgressPath(string outputPath)
+        {
+            return GetProgressContractPath(outputPath);
+        }
 
         public Task<PythonProcessResult> AnalyzeAsync(
             string inputPath, string outputPath, string jobId,
@@ -96,7 +142,7 @@ namespace missing_data
             EnsureFileExists(predictorScript, "Python runner");
 
             string contractPath = GetContractPath(outputPath);
-            string progressPath = GetProgressPath(outputPath);
+            string progressPath = GetProgressContractPath(outputPath);
             string arguments =
                 Quote(predictorScript) + " " + mode + " " +
                 "--input " + Quote(inputPath) + " " +
@@ -157,7 +203,8 @@ namespace missing_data
                 {
                     ExitCode = process.ExitCode,
                     Stdout = stdout.ToString(),
-                    Stderr = stderr.ToString()
+                    Stderr = stderr.ToString(),
+                    ExecutionContract = ReadExecutionContract(contractPath)
                 };
             }
         }
@@ -194,11 +241,20 @@ namespace missing_data
                 "execution_contract.json");
         }
 
-        private static string GetProgressPath(string outputPath)
+        private static string GetProgressContractPath(string outputPath)
         {
             return Path.Combine(
                 Path.GetDirectoryName(Path.GetFullPath(outputPath)),
                 "progress.json");
+        }
+
+        private static PythonExecutionContract ReadExecutionContract(string contractPath)
+        {
+            if (!File.Exists(contractPath))
+                return null;
+
+            return JsonConvert.DeserializeObject<PythonExecutionContract>(
+                File.ReadAllText(contractPath));
         }
 
         private static string Quote(string value)

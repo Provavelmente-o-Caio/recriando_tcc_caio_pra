@@ -588,8 +588,9 @@ namespace missing_data
 
             predictionProgressBar = new ProgressBar
             {
-                Style = ProgressBarStyle.Marquee,
-                MarqueeAnimationSpeed = 30,
+                Style = ProgressBarStyle.Continuous,
+                Minimum = 0,
+                Maximum = 100,
                 Dock = DockStyle.Fill,
                 Visible = false
             };
@@ -736,8 +737,9 @@ namespace missing_data
             container.Controls.Add(cancelTrainingButton, 0, 1);
             trainingProgressBar = new ProgressBar
             {
-                Style = ProgressBarStyle.Marquee,
-                MarqueeAnimationSpeed = 30,
+                Style = ProgressBarStyle.Continuous,
+                Minimum = 0,
+                Maximum = 100,
                 Dock = DockStyle.Fill,
                 Visible = false
             };
@@ -846,6 +848,12 @@ namespace missing_data
         {
             try
             {
+                trainingCancellationSource = new CancellationTokenSource();
+                CancellationToken cancellationToken = trainingCancellationSource.Token;
+                trainingButton.Enabled = false;
+                cancelTrainingButton.Enabled = true;
+                trainingProgressBar.Visible = true;
+
                 var selectedWells = GetSelectedWells(clb);
 
                 if (selectedWells.Count() == 0)
@@ -871,11 +879,16 @@ namespace missing_data
                 AppendStatus("Python executable: " + pythonRuntimeService.PythonExecutable);
                 AppendStatus("Runner script: " + pythonRuntimeService.PredictorScript);
 
-                var result = await pythonRuntimeService.AnalyzeAsync(
-                    inputPath,
+                var result = await RunPythonWithProgressAsync(
+                    () => pythonRuntimeService.AnalyzeAsync(
+                        inputPath,
+                        analysisOutputPath,
+                        jobId,
+                        cancellationToken),
                     analysisOutputPath,
-                    jobId
-                );
+                    jobId,
+                    trainingProgressBar,
+                    AppendStatus);
 
                 if (!string.IsNullOrWhiteSpace(result.Stdout))
                 {
@@ -972,14 +985,18 @@ namespace missing_data
                     JsonConvert.SerializeObject(payload_clusters, Formatting.Indented)
                 );
 
-                    var result_clusters = await pythonRuntimeService.TrainAsync(
-                        inputPath,
+                    var result_clusters = await RunPythonWithProgressAsync(
+                        () => pythonRuntimeService.TrainAsync(
+                            inputPath,
+                            outputPath,
+                            clustersPath,
+                            jobId,
+                            cancellationToken,
+                            (line, isError) => AppendStatus(line)),
                         outputPath,
-                        clustersPath,
                         jobId,
-                        CancellationToken.None,
-                        (line, isError) => AppendStatus(line)
-                    );
+                        trainingProgressBar,
+                        AppendStatus);
 
                 if (!string.IsNullOrWhiteSpace(result_clusters.Stdout))
                 {
@@ -1044,6 +1061,10 @@ namespace missing_data
             finally
             {
                 trainingButton.Enabled = true;
+                cancelTrainingButton.Enabled = false;
+                trainingProgressBar.Visible = false;
+                trainingCancellationSource?.Dispose();
+                trainingCancellationSource = null;
             }
         }
 
@@ -1086,12 +1107,17 @@ namespace missing_data
                     JsonConvert.SerializeObject(payload, Formatting.Indented));
 
                 AppendTrainingStatus("Analyzing clusters before Optuna training...");
-                var analysisResult = await pythonRuntimeService.AnalyzeAsync(
-                    inputPath,
+                var analysisResult = await RunPythonWithProgressAsync(
+                    () => pythonRuntimeService.AnalyzeAsync(
+                        inputPath,
+                        analysisOutputPath,
+                        jobId,
+                        cancellationToken,
+                        (line, isError) => AppendTrainingStatus(line)),
                     analysisOutputPath,
                     jobId,
-                    cancellationToken,
-                    (line, isError) => AppendTrainingStatus(line));
+                    trainingProgressBar,
+                    AppendTrainingStatus);
 
                 if (analysisResult.ExitCode != 0)
                 {
@@ -1157,15 +1183,20 @@ namespace missing_data
                 int optunaJobs = (int)optunaJobsNumBox.Value;
                 AppendTrainingStatus("Optuna jobs: " + optunaJobs);
 
-                var result = await pythonRuntimeService.RunOptunaTrainingAsync(
-                    inputPath,
-                    clustersPath,
+                var result = await RunPythonWithProgressAsync(
+                    () => pythonRuntimeService.RunOptunaTrainingAsync(
+                        inputPath,
+                        clustersPath,
+                        outputPath,
+                        trials: 30,
+                        jobs: optunaJobs,
+                        jobId: jobId,
+                        cancellationToken: cancellationToken,
+                        outputCallback: (line, isError) => AppendTrainingStatus(line)),
                     outputPath,
-                    trials: 30,
-                    jobs: optunaJobs,
-                    jobId: jobId,
-                    cancellationToken: cancellationToken,
-                    outputCallback: (line, isError) => AppendTrainingStatus(line));
+                    jobId,
+                    trainingProgressBar,
+                    AppendTrainingStatus);
 
                 if (result.ExitCode != 0)
                 {
@@ -1296,12 +1327,16 @@ namespace missing_data
                 AppendStatus("Python executable: " + pythonRuntimeService.PythonExecutable);
                 AppendStatus("Runner script: " + pythonRuntimeService.PredictorScript);
 
-                var result = await pythonRuntimeService.AnalyzeAsync(
-                    inputPath,
+                var result = await RunPythonWithProgressAsync(
+                    () => pythonRuntimeService.AnalyzeAsync(
+                        inputPath,
+                        analysisOutputPath,
+                        jobId,
+                        cancellationToken),
                     analysisOutputPath,
                     jobId,
-                    cancellationToken
-                );
+                    predictionProgressBar,
+                    AppendStatus);
 
                 if (!string.IsNullOrWhiteSpace(result.Stdout))
                 {
@@ -1398,15 +1433,19 @@ namespace missing_data
                     JsonConvert.SerializeObject(payload_clusters, Formatting.Indented)
                 );
 
-                    var result_clusters = await pythonRuntimeService.PredictAsync(
-                        inputPath,
+                    var result_clusters = await RunPythonWithProgressAsync(
+                        () => pythonRuntimeService.PredictAsync(
+                            inputPath,
+                            predictionOutputPath,
+                            clustersPath,
+                            trainedModelFolderTextBox.Text,
+                            jobId,
+                            cancellationToken,
+                            (line, isError) => AppendStatus(line)),
                         predictionOutputPath,
-                        clustersPath,
-                        trainedModelFolderTextBox.Text,
                         jobId,
-                        cancellationToken,
-                        (line, isError) => AppendStatus(line)
-                    );
+                        predictionProgressBar,
+                        AppendStatus);
 
                 if (!string.IsNullOrWhiteSpace(result_clusters.Stdout))
                 {
@@ -1486,6 +1525,142 @@ namespace missing_data
                 predictionProgressBar.Visible = false;
                 predictionCancellationSource?.Dispose();
                 predictionCancellationSource = null;
+            }
+        }
+
+        private async Task<PythonProcessResult> RunPythonWithProgressAsync(
+            Func<Task<PythonProcessResult>> operation,
+            string outputPath,
+            string jobId,
+            ProgressBar progressBar,
+            Action<string> appendStatus)
+        {
+            string progressPath = pythonRuntimeService.GetProgressPath(outputPath);
+            if (progressBar != null)
+            {
+                progressBar.Value = 0;
+            }
+            Task<PythonProcessResult> processTask = operation();
+            Task monitorTask = MonitorProgressAsync(
+                progressPath,
+                jobId,
+                progressBar,
+                appendStatus,
+                processTask);
+
+            PythonProcessResult result;
+            try
+            {
+                result = await processTask;
+            }
+            finally
+            {
+                await monitorTask;
+            }
+
+            PythonExecutionContract contract = result.ExecutionContract;
+            if (contract == null)
+                throw new InvalidOperationException(
+                    "Python finished without generating execution_contract.json.");
+
+            if (contract.SchemaVersion != 1 || contract.JobId != jobId)
+                throw new InvalidOperationException(
+                    "Python returned an invalid or stale execution contract.");
+
+            if (contract.Status == "cancelled")
+                throw new OperationCanceledException(contract.Message);
+
+            if (contract.Status != "success")
+                throw new InvalidOperationException(
+                    "Python execution failed: " + contract.Message);
+
+            return result;
+        }
+
+        private async Task MonitorProgressAsync(
+            string progressPath,
+            string jobId,
+            ProgressBar progressBar,
+            Action<string> appendStatus,
+            Task processTask)
+        {
+            string lastStage = null;
+            string lastMessage = null;
+
+            while (!processTask.IsCompleted)
+            {
+                UpdateProgressFromContract(
+                    progressPath,
+                    jobId,
+                    progressBar,
+                    appendStatus,
+                    ref lastStage,
+                    ref lastMessage);
+                await Task.Delay(250);
+            }
+
+            UpdateProgressFromContract(
+                progressPath,
+                jobId,
+                progressBar,
+                appendStatus,
+                ref lastStage,
+                ref lastMessage);
+        }
+
+        private void UpdateProgressFromContract(
+            string progressPath,
+            string jobId,
+            ProgressBar progressBar,
+            Action<string> appendStatus,
+            ref string lastStage,
+            ref string lastMessage)
+        {
+            if (!File.Exists(progressPath))
+                return;
+
+            PythonProgressContract progress;
+            try
+            {
+                progress = JsonConvert.DeserializeObject<PythonProgressContract>(
+                    File.ReadAllText(progressPath));
+            }
+            catch (IOException)
+            {
+                return;
+            }
+            catch (JsonException)
+            {
+                return;
+            }
+
+            if (progress == null
+                || progress.SchemaVersion != 1
+                || progress.JobId != jobId)
+                return;
+
+            int percent = Math.Max(0, Math.Min(100, (int)Math.Round(progress.Percent)));
+            if (progressBar != null)
+            {
+                if (progressBar.InvokeRequired)
+                {
+                    progressBar.BeginInvoke(new Action<int>(
+                        value => progressBar.Value = value), percent);
+                }
+                else
+                {
+                    progressBar.Value = percent;
+                }
+            }
+
+            if (appendStatus != null
+                && (progress.Stage != lastStage || progress.Message != lastMessage))
+            {
+                appendStatus(
+                    "Progress " + percent + "% - "
+                    + progress.Stage + ": " + progress.Message);
+                lastStage = progress.Stage;
+                lastMessage = progress.Message;
             }
         }
 
