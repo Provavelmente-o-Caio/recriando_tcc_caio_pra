@@ -884,28 +884,20 @@ namespace missing_data
                         inputPath,
                         analysisOutputPath,
                         jobId,
-                        cancellationToken),
+                        cancellationToken,
+                        (line, isError) => AppendPythonOutput(
+                            AppendStatus,
+                            line,
+                            isError)),
                     analysisOutputPath,
                     jobId,
                     trainingProgressBar,
                     AppendStatus);
 
-                if (!string.IsNullOrWhiteSpace(result.Stdout))
-                {
-                    // AppendStatus(result.Stdout);
-                }
-
-                if (!string.IsNullOrWhiteSpace(result.Stderr))
-                {
-                    // AppendStatus(result.Stderr);
-                }
-
                 if (result.ExitCode != 0)
                 {
-                    // AppendStatus(result.Stderr);
-
                     MessageBox.Show(
-                        result.Stderr,
+                        GetPythonErrorMessage(result),
                         "Python analysis failed",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error
@@ -992,28 +984,19 @@ namespace missing_data
                             clustersPath,
                             jobId,
                             cancellationToken,
-                            (line, isError) => AppendStatus(line)),
+                            (line, isError) => AppendPythonOutput(
+                                AppendStatus,
+                                line,
+                                isError)),
                         outputPath,
                         jobId,
                         trainingProgressBar,
                         AppendStatus);
 
-                if (!string.IsNullOrWhiteSpace(result_clusters.Stdout))
-                {
-                    AppendStatus(result_clusters.Stdout);
-                }
-
-                if (!string.IsNullOrWhiteSpace(result_clusters.Stderr))
-                {
-                    AppendStatus(result_clusters.Stderr);
-                }
-
                 if (result_clusters.ExitCode != 0)
                 {
-                     AppendStatus(result_clusters.Stderr);
-
                     MessageBox.Show(
-                        result_clusters.Stderr,
+                        GetPythonErrorMessage(result_clusters),
                         "Python analysis failed",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error
@@ -1113,7 +1096,10 @@ namespace missing_data
                         analysisOutputPath,
                         jobId,
                         cancellationToken,
-                        (line, isError) => AppendTrainingStatus(line)),
+                        (line, isError) => AppendPythonOutput(
+                            AppendTrainingStatus,
+                            line,
+                            isError)),
                     analysisOutputPath,
                     jobId,
                     trainingProgressBar,
@@ -1122,7 +1108,7 @@ namespace missing_data
                 if (analysisResult.ExitCode != 0)
                 {
                     MessageBox.Show(
-                        analysisResult.Stderr,
+                        GetPythonErrorMessage(analysisResult),
                         "Cluster analysis failed",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error);
@@ -1192,7 +1178,10 @@ namespace missing_data
                         jobs: optunaJobs,
                         jobId: jobId,
                         cancellationToken: cancellationToken,
-                        outputCallback: (line, isError) => AppendTrainingStatus(line)),
+                        outputCallback: (line, isError) => AppendPythonOutput(
+                            AppendTrainingStatus,
+                            line,
+                            isError)),
                     outputPath,
                     jobId,
                     trainingProgressBar,
@@ -1202,7 +1191,7 @@ namespace missing_data
                 if (result.ExitCode != 0)
                 {
                     MessageBox.Show(
-                        result.Stderr,
+                        GetPythonErrorMessage(result),
                         "Optuna training failed",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error);
@@ -1333,28 +1322,20 @@ namespace missing_data
                         inputPath,
                         analysisOutputPath,
                         jobId,
-                        cancellationToken),
+                        cancellationToken,
+                        (line, isError) => AppendPythonOutput(
+                            AppendStatus,
+                            line,
+                            isError)),
                     analysisOutputPath,
                     jobId,
                     predictionProgressBar,
                     AppendStatus);
 
-                if (!string.IsNullOrWhiteSpace(result.Stdout))
-                {
-                    AppendStatus(result.Stdout);
-                }
-
-                if (!string.IsNullOrWhiteSpace(result.Stderr))
-                {
-                    AppendStatus(result.Stderr);
-                }
-
                 if (result.ExitCode != 0)
                 {
-                    AppendStatus(result.Stderr);
-
                     MessageBox.Show(
-                        result.Stderr,
+                        GetPythonErrorMessage(result),
                         "Python analysis failed",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error
@@ -1442,26 +1423,19 @@ namespace missing_data
                             trainedModelFolderTextBox.Text,
                             jobId,
                             cancellationToken,
-                            (line, isError) => AppendStatus(line)),
+                            (line, isError) => AppendPythonOutput(
+                                AppendStatus,
+                                line,
+                                isError)),
                         predictionOutputPath,
                         jobId,
                         predictionProgressBar,
                         AppendStatus);
 
-                if (!string.IsNullOrWhiteSpace(result_clusters.Stdout))
-                {
-                    AppendStatus(result_clusters.Stdout);
-                }
-
-                if (!string.IsNullOrWhiteSpace(result_clusters.Stderr))
-                {
-                    AppendStatus(result_clusters.Stderr);
-                }
-
                 if (result_clusters.ExitCode != 0)
                 {
                     MessageBox.Show(
-                        result_clusters.Stderr,
+                        GetPythonErrorMessage(result_clusters),
                         "Prediction failed",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error
@@ -1664,6 +1638,62 @@ namespace missing_data
                 lastStage = progress.Stage;
                 lastMessage = progress.Message;
             }
+        }
+
+        private static void AppendPythonOutput(
+            Action<string> appendStatus,
+            string line,
+            bool isError)
+        {
+            if (appendStatus == null || string.IsNullOrWhiteSpace(line))
+                return;
+
+            string trimmedLine = line.Trim();
+            if (IsStructuredProgressEvent(trimmedLine))
+                return;
+
+            appendStatus(
+                (isError ? "Python ERROR: " : "Python: ")
+                + trimmedLine);
+        }
+
+        private static bool IsStructuredProgressEvent(string line)
+        {
+            if (string.IsNullOrWhiteSpace(line)
+                || line[0] != '{'
+                || line[line.Length - 1] != '}')
+                return false;
+
+            try
+            {
+                var payload = Newtonsoft.Json.Linq.JObject.Parse(line);
+                return string.Equals(
+                    (string)payload["status"],
+                    "progress",
+                    StringComparison.OrdinalIgnoreCase);
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+        }
+
+        private static string GetPythonErrorMessage(PythonProcessResult result)
+        {
+            if (result != null
+                && result.ExecutionContract != null
+                && !string.IsNullOrWhiteSpace(result.ExecutionContract.Message))
+            {
+                string errorType = result.ExecutionContract.ErrorType;
+                return string.IsNullOrWhiteSpace(errorType)
+                    ? result.ExecutionContract.Message
+                    : errorType + ": " + result.ExecutionContract.Message;
+            }
+
+            if (result != null && !string.IsNullOrWhiteSpace(result.Stderr))
+                return result.Stderr.Trim();
+
+            return "Python execution failed without an error message.";
         }
 
         private void AppendStatus(string message)

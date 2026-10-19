@@ -495,20 +495,23 @@ class Predictor:
 
         return experiment_dir
 
-    def _run_existing_experiment(self, existing_experiments: list[str]):
-        if len(existing_experiments) == 1:
-            experiment_dir = existing_experiments[0]
-        else:
-            exp_idx = (
-                int(
-                    input(
-                        f"Which experiment? (1-{len(existing_experiments)}): "
-                    ).strip()
+    def _run_existing_experiment(
+        self, existing_experiments: list[str], experiment_dir: str | None = None
+    ):
+        if experiment_dir:
+            selected_experiment = os.path.abspath(experiment_dir)
+            if selected_experiment not in map(os.path.abspath, existing_experiments):
+                raise ValueError(
+                    "The requested experiment directory is not part of the available experiments."
                 )
-                - 1
-            )
-            experiment_dir = existing_experiments[exp_idx]
-        return experiment_dir
+            return selected_experiment
+
+        if len(existing_experiments) == 1:
+            return existing_experiments[0]
+
+        raise ValueError(
+            "Multiple experiments are available. Provide experiment_dir explicitly."
+        )
 
 
 def load_json_payload(input_path: str) -> dict[str, Any]:
