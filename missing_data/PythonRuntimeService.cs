@@ -113,12 +113,28 @@ namespace missing_data
             int trials, int jobs, string jobId, CancellationToken cancellationToken,
             Action<string, bool> outputCallback = null)
         {
-            EnsureFileExists(pythonExecutable, "Python executable");
-            EnsureFileExists(optunaScript, "Optuna runner");
             Directory.CreateDirectory(outputPath);
 
             string contractPath = Path.Combine(outputPath, "execution_contract.json");
             string progressPath = Path.Combine(outputPath, "progress.json");
+            try
+            {
+                EnsureFileExists(pythonExecutable, "Python executable");
+                EnsureFileExists(optunaScript, "Optuna runner");
+            }
+            catch (Exception error)
+            {
+                WriteExecutionContract(
+                    contractPath,
+                    jobId,
+                    "optuna_training",
+                    "error",
+                    error.Message,
+                    error.GetType().Name);
+                return Task.FromResult(
+                    CreateContractErrorResult(contractPath, error.Message));
+            }
+
             string arguments =
                 Quote(optunaScript) + " --data-source payload " +
                 "--input " + Quote(inputPath) + " " +
@@ -138,11 +154,26 @@ namespace missing_data
             string trainedModelFolder, string jobId, CancellationToken cancellationToken,
             Action<string, bool> outputCallback)
         {
-            EnsureFileExists(pythonExecutable, "Python executable");
-            EnsureFileExists(predictorScript, "Python runner");
-
             string contractPath = GetContractPath(outputPath);
             string progressPath = GetProgressContractPath(outputPath);
+            try
+            {
+                EnsureFileExists(pythonExecutable, "Python executable");
+                EnsureFileExists(predictorScript, "Python runner");
+            }
+            catch (Exception error)
+            {
+                WriteExecutionContract(
+                    contractPath,
+                    jobId,
+                    mode,
+                    "error",
+                    error.Message,
+                    error.GetType().Name);
+                return Task.FromResult(
+                    CreateContractErrorResult(contractPath, error.Message));
+            }
+
             string arguments =
                 Quote(predictorScript) + " " + mode + " " +
                 "--input " + Quote(inputPath) + " " +
@@ -180,10 +211,38 @@ namespace missing_data
             Action<string, bool> outputCallback, string contractPath,
             string jobId, string operation)
         {
+            WriteExecutionContract(
+                contractPath,
+                jobId,
+                operation,
+                "running",
+                "Starting Python process.");
+
             using (var process = new Process())
             {
                 process.StartInfo = startInfo;
-                process.Start();
+                try
+                {
+                    process.Start();
+                }
+                catch (Exception error)
+                {
+                    WriteExecutionContract(
+                        contractPath,
+                        jobId,
+                        operation,
+                        "error",
+                        error.Message,
+                        error.GetType().Name);
+                    return new PythonProcessResult
+                    {
+                        ExitCode = -1,
+                        Stdout = string.Empty,
+                        Stderr = error.Message,
+                        ExecutionContract = ReadExecutionContract(contractPath)
+                    };
+                }
+
                 var stdout = new StringBuilder();
                 var stderr = new StringBuilder();
                 Task stdoutTask = ReadStreamAsync(process.StandardOutput, stdout, false, outputCallback);
@@ -199,12 +258,30 @@ namespace missing_data
                     cancellationToken.ThrowIfCancellationRequested();
                 }
 
+                PythonExecutionContract executionContract =
+                    ReadExecutionContract(contractPath);
+                if (process.ExitCode != 0
+                    && (executionContract == null
+                        || executionContract.Status == "running"))
+                {
+                    WriteExecutionContract(
+                        contractPath,
+                        jobId,
+                        operation,
+                        "error",
+                        string.IsNullOrWhiteSpace(stderr.ToString())
+                            ? "Python process exited with code " + process.ExitCode + "."
+                            : stderr.ToString().Trim(),
+                        "ProcessExit");
+                    executionContract = ReadExecutionContract(contractPath);
+                }
+
                 return new PythonProcessResult
                 {
                     ExitCode = process.ExitCode,
                     Stdout = stdout.ToString(),
                     Stderr = stderr.ToString(),
-                    ExecutionContract = ReadExecutionContract(contractPath)
+                    ExecutionContract = executionContract
                 };
             }
         }
@@ -257,6 +334,19 @@ namespace missing_data
                 File.ReadAllText(contractPath));
         }
 
+        private static PythonProcessResult CreateContractErrorResult(
+            string contractPath,
+            string message)
+        {
+            return new PythonProcessResult
+            {
+                ExitCode = -1,
+                Stdout = string.Empty,
+                Stderr = message,
+                ExecutionContract = ReadExecutionContract(contractPath)
+            };
+        }
+
         private static string Quote(string value)
         {
             return "\"" + value.Replace("\"", "\\\"") + "\"";
@@ -271,19 +361,59 @@ namespace missing_data
         private static void WriteCancellationContract(
             string contractPath, string jobId, string operation)
         {
+            WriteExecutionContract(
+                contractPath,
+                jobId,
+                operation,
+                "cancelled",
+                "Execution cancelled by the user.");
+        }
+
+        private static void WriteExecutionContract(
+            string contractPath,
+            string jobId,
+            string operation,
+            string status,
+            string message,
+            string errorType = null)
+        {
             string directory = Path.GetDirectoryName(contractPath);
             if (!string.IsNullOrWhiteSpace(directory))
                 Directory.CreateDirectory(directory);
 
+            var payload = new
+            {
+                schema_version = 1,
+                job_id = jobId,
+                operation = operation,
+                status = status,
+                message = message,
+                updated_at = DateTime.UtcNow.ToString("o"),
+                error_type = errorType
+            };
+
+            string temporaryPath = contractPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
             File.WriteAllText(
-                contractPath,
-                "{\n"
-                + "  \"schema_version\": 1,\n"
-                + "  \"job_id\": \"" + jobId.Replace("\"", "\\\"") + "\",\n"
-                + "  \"operation\": \"" + operation + "\",\n"
-                + "  \"status\": \"cancelled\",\n"
-                + "  \"message\": \"Execution cancelled by the user.\"\n"
-                + "}");
+                temporaryPath,
+                JsonConvert.SerializeObject(
+                    payload,
+                    Formatting.Indented));
+            try
+            {
+                if (File.Exists(contractPath))
+                {
+                    File.Replace(temporaryPath, contractPath, null);
+                }
+                else
+                {
+                    File.Move(temporaryPath, contractPath);
+                }
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath))
+                    File.Delete(temporaryPath);
+            }
         }
 
         private static void TerminateProcessTree(Process process)

@@ -892,7 +892,8 @@ namespace missing_data
                     analysisOutputPath,
                     jobId,
                     trainingProgressBar,
-                    AppendStatus);
+                    AppendStatus,
+                    "analyze");
 
                 if (result.ExitCode != 0)
                 {
@@ -991,7 +992,8 @@ namespace missing_data
                         outputPath,
                         jobId,
                         trainingProgressBar,
-                        AppendStatus);
+                        AppendStatus,
+                        "train");
 
                 if (result_clusters.ExitCode != 0)
                 {
@@ -1103,7 +1105,8 @@ namespace missing_data
                     analysisOutputPath,
                     jobId,
                     trainingProgressBar,
-                    AppendTrainingStatus);
+                    AppendTrainingStatus,
+                    "analyze");
 
                 if (analysisResult.ExitCode != 0)
                 {
@@ -1186,7 +1189,8 @@ namespace missing_data
                     jobId,
                     trainingProgressBar,
                     AppendTrainingStatus,
-                    Path.Combine(outputPath, "progress.json"));
+                    Path.Combine(outputPath, "progress.json"),
+                    "optuna_training");
 
                 if (result.ExitCode != 0)
                 {
@@ -1330,7 +1334,8 @@ namespace missing_data
                     analysisOutputPath,
                     jobId,
                     predictionProgressBar,
-                    AppendStatus);
+                    AppendStatus,
+                    "analyze");
 
                 if (result.ExitCode != 0)
                 {
@@ -1430,7 +1435,8 @@ namespace missing_data
                         predictionOutputPath,
                         jobId,
                         predictionProgressBar,
-                        AppendStatus);
+                        AppendStatus,
+                        "predict");
 
                 if (result_clusters.ExitCode != 0)
                 {
@@ -1509,7 +1515,8 @@ namespace missing_data
             string jobId,
             ProgressBar progressBar,
             Action<string> appendStatus,
-            string progressPath = null)
+            string progressPath,
+            string expectedOperation)
         {
             progressPath = progressPath ?? pythonRuntimeService.GetProgressPath(outputPath);
             if (progressBar != null)
@@ -1522,7 +1529,8 @@ namespace missing_data
                 jobId,
                 progressBar,
                 appendStatus,
-                processTask);
+                processTask,
+                expectedOperation);
 
             PythonProcessResult result;
             try
@@ -1539,9 +1547,18 @@ namespace missing_data
                 throw new InvalidOperationException(
                     "Python finished without generating execution_contract.json.");
 
-            if (contract.SchemaVersion != 1 || contract.JobId != jobId)
+            if (contract.SchemaVersion != 1
+                || contract.JobId != jobId
+                || contract.Operation != expectedOperation)
                 throw new InvalidOperationException(
-                    "Python returned an invalid or stale execution contract.");
+                    "Python returned an invalid, stale, or mismatched execution contract.");
+
+            if (contract.Status != "running"
+                && contract.Status != "success"
+                && contract.Status != "error"
+                && contract.Status != "cancelled")
+                throw new InvalidOperationException(
+                    "Python returned an execution contract with an unsupported status.");
 
             if (contract.Status == "cancelled")
                 throw new OperationCanceledException(contract.Message);
@@ -1558,7 +1575,8 @@ namespace missing_data
             string jobId,
             ProgressBar progressBar,
             Action<string> appendStatus,
-            Task processTask)
+            Task processTask,
+            string expectedOperation)
         {
             string lastStage = null;
             string lastMessage = null;
@@ -1570,6 +1588,7 @@ namespace missing_data
                     jobId,
                     progressBar,
                     appendStatus,
+                    expectedOperation,
                     ref lastStage,
                     ref lastMessage);
                 await Task.Delay(250);
@@ -1580,6 +1599,7 @@ namespace missing_data
                 jobId,
                 progressBar,
                 appendStatus,
+                expectedOperation,
                 ref lastStage,
                 ref lastMessage);
         }
@@ -1589,6 +1609,7 @@ namespace missing_data
             string jobId,
             ProgressBar progressBar,
             Action<string> appendStatus,
+            string expectedOperation,
             ref string lastStage,
             ref string lastMessage)
         {
@@ -1612,7 +1633,9 @@ namespace missing_data
 
             if (progress == null
                 || progress.SchemaVersion != 1
-                || progress.JobId != jobId)
+                || progress.JobId != jobId
+                || progress.Operation != expectedOperation
+                || progress.Status != "progress")
                 return;
 
             int percent = Math.Max(0, Math.Min(100, (int)Math.Round(progress.Percent)));
