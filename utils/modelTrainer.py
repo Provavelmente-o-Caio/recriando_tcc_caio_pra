@@ -96,7 +96,10 @@ class FinalModelTrainer:
         return torch.device("cpu")
 
     def train_final_model(
-        self, wells_with_vs: list[pl.DataFrame], target_feature: str = "VS"
+        self,
+        wells_with_vs: list[pl.DataFrame],
+        target_feature: str = "VS",
+        progress_callback=None,
     ) -> dict:
         """Treina um modelo final por cluster geológico."""
         # print(f"\n{'=' * 80}")
@@ -115,7 +118,9 @@ class FinalModelTrainer:
         trained_clusters = {}
         total_start_time = time.perf_counter()
 
-        for cluster_name, cluster_indices in clusters.items():
+        for cluster_position, (cluster_name, cluster_indices) in enumerate(
+            clusters.items(), start=1
+        ):
             cluster_start_time = time.perf_counter()
             # print(f"\n{'=' * 80}")
             # print(f"CLUSTER {cluster_name} — Wells {cluster_indices}")
@@ -263,6 +268,18 @@ class FinalModelTrainer:
                 self.base_config["num_epochs"],
                 self.base_config["patience"],
                 verbose=True,
+                epoch_callback=(
+                    lambda epoch, total_epochs, metrics: progress_callback(
+                        cluster_name,
+                        cluster_position,
+                        len(clusters),
+                        epoch,
+                        total_epochs,
+                        metrics,
+                    )
+                    if progress_callback is not None
+                    else None
+                ),
             )
             cluster_elapsed = time.perf_counter() - cluster_start_time
             print(

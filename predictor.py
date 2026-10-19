@@ -39,6 +39,7 @@ class Predictor:
         self.model_root: str = model_root
         self.device: None | torch.device = self._resolve_device(device)
         self.clusters = {}
+        self.progress_callback = None
         # self.wells = self._read_all_wells_with_dept_to_list(features="all")
         # self.wells_dfs = self._filter_common_features(self.wells, ignore=["VS"])
 
@@ -438,7 +439,16 @@ class Predictor:
             wells_without_vs,
         ) = self.prediction_setup(input_path, output_path, recommended_clusters_path)
 
-        # print("\nRunning cross-fold validation...")
+        if self.progress_callback is not None:
+            self.progress_callback(
+                "cross_validation",
+                0,
+                1,
+                0,
+                1,
+                {"val_loss": 0.0, "val_r2": 0.0},
+            )
+
         experiment_dir = self._run_new_experiment(
             base_config, feature_combinations, wells_with_vs, experiments_dir
         )
@@ -450,7 +460,9 @@ class Predictor:
             best_config, base_config, output_dir=final_output_dir
         )
         trained_clusters = trainer.train_final_model(
-            wells_with_vs, target_feature=base_config["target_feature"]
+            wells_with_vs,
+            target_feature=base_config["target_feature"],
+            progress_callback=self.progress_callback,
         )
 
         all_results = trainer.predict_on_wells(
@@ -773,8 +785,38 @@ def main():
     )
     emit_progress(args.progress, args.job_id, args.mode, 0, "starting", "Execution started.")
 
+    def report_training_progress(
+        cluster_name,
+        cluster_position,
+        cluster_count,
+        epoch,
+        total_epochs,
+        metrics,
+    ):
+        cluster_fraction = min(1.0, epoch / max(1, total_epochs))
+        overall_fraction = (
+            (cluster_position - 1 + cluster_fraction) / max(1, cluster_count)
+        )
+        percent = 15 + overall_fraction * 70
+        emit_progress(
+            args.progress,
+            args.job_id,
+            args.mode,
+            percent,
+            "training",
+            (
+                f"Cluster {cluster_position}/{cluster_count} ({cluster_name}), "
+                f"epoch {epoch}/{total_epochs}; "
+                f"validation loss={metrics['val_loss']:.5f}, "
+                f"R2={metrics['val_r2']:.5f}"
+            ),
+        )
+
     try:
         predictor = Predictor(model_root=args.model_root, device=None)
+        predictor.progress_callback = (
+            report_training_progress if args.mode == "train" else None
+        )
         emit_progress(args.progress, args.job_id, args.mode, 10, "loading", "Input loading started.")
         match args.mode:
             case "analyze":

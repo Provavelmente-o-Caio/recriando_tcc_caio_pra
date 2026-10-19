@@ -73,6 +73,10 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
     """Same leave-one-well-out folds as the parent, but the fixed
     hyperparameter grid is replaced by an Optuna study per cluster."""
 
+    def __init__(self, *args, progress_callback=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.progress_callback = progress_callback
+
     def run_single_experiment(
         self,
         features_to_use,
@@ -262,6 +266,7 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
         Returns:
  {cluster_name: {features_key: [fold_dict, ...]}}
         """
+
         fold_data: dict[str, dict[tuple, list]] = {}
         for features_to_use in feature_combinations:
             features_key = tuple(features_to_use)
@@ -422,7 +427,10 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
         storage = f"sqlite:///{os.path.join(self.results_dir, 'optuna.db')}"
         best_config = {}
 
-        for cluster_name, cluster_feature_folds in fold_data.items():
+        cluster_count = len(fold_data)
+        for cluster_position, (cluster_name, cluster_feature_folds) in enumerate(
+            fold_data.items(), start=1
+        ):
             if not cluster_feature_folds:
                 continue
 
@@ -443,13 +451,30 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
                 load_if_exists=True,
                 pruner=optuna.pruners.MedianPruner(n_startup_trials=3),
             )
+            def on_trial_complete(study, trial):
+                if self.progress_callback is None:
+                    return
+                completed_trials = len(study.trials)
+                trial_fraction = min(1.0, completed_trials / max(1, n_trials))
+                overall_fraction = (
+                    cluster_position - 1 + trial_fraction
+                ) / max(1, cluster_count)
+                self.progress_callback(
+                    15 + overall_fraction * 70,
+                    (
+                        f"Optuna cluster {cluster_position}/{cluster_count} "
+                        f"'{cluster_name}', trial {completed_trials}/{n_trials}"
+                    ),
+                )
+
             study.optimize(
                 lambda trial: self._objective(
                     trial, cluster_feature_folds, cluster_name
                 ),
                 n_trials=n_trials,
                 n_jobs=n_jobs,
-                show_progress_bar=True,
+                callbacks=[on_trial_complete],
+                show_progress_bar=False,
             )
 
             completed_trials = [
@@ -580,7 +605,21 @@ def main():
                 predictor.prediction_setup(args.input, args.output, args.cluster)
             )
 
-        experiment = OptunaCrossFoldExperiment(base_config, results_dir=args.output)
+        def report_optuna_progress(percent, message):
+            emit_progress(
+                progress_path,
+                args.job_id,
+                operation,
+                percent,
+                "optimization",
+                message,
+            )
+
+        experiment = OptunaCrossFoldExperiment(
+            base_config,
+            results_dir=args.output,
+            progress_callback=report_optuna_progress,
+        )
         best_config = experiment.run_optuna_optimization(
             feature_combinations, wells_with_vs, n_trials=args.trials, n_jobs=args.jobs
         )
@@ -599,7 +638,29 @@ def main():
             load_best_configuration(args.output), base_config, output_dir=final_output_dir
         )
         trained_clusters = trainer.train_final_model(
-            wells_with_vs, target_feature=base_config["target_feature"]
+            wells_with_vs,
+            target_feature=base_config["target_feature"],
+            progress_callback=(
+                lambda cluster_name, cluster_position, cluster_count, epoch,
+                total_epochs, metrics: emit_progress(
+                    progress_path,
+                    args.job_id,
+                    operation,
+                    85 + (
+                        (
+                            cluster_position - 1
+                            + epoch / max(1, total_epochs)
+                        )
+                        / max(1, cluster_count)
+                    ) * 10,
+                    "final_training",
+                    (
+                        f"Cluster {cluster_position}/{cluster_count} ({cluster_name}), "
+                        f"epoch {epoch}/{total_epochs}; "
+                        f"validation loss={metrics['val_loss']:.5f}"
+                    ),
+                )
+            ),
         )
         all_results = trainer.predict_on_wells(
             trained_clusters,

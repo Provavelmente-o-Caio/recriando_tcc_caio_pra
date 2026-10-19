@@ -1196,7 +1196,8 @@ namespace missing_data
                     outputPath,
                     jobId,
                     trainingProgressBar,
-                    AppendTrainingStatus);
+                    AppendTrainingStatus,
+                    Path.Combine(outputPath, "progress.json"));
 
                 if (result.ExitCode != 0)
                 {
@@ -1533,9 +1534,10 @@ namespace missing_data
             string outputPath,
             string jobId,
             ProgressBar progressBar,
-            Action<string> appendStatus)
+            Action<string> appendStatus,
+            string progressPath = null)
         {
-            string progressPath = pythonRuntimeService.GetProgressPath(outputPath);
+            progressPath = progressPath ?? pythonRuntimeService.GetProgressPath(outputPath);
             if (progressBar != null)
             {
                 progressBar.Value = 0;

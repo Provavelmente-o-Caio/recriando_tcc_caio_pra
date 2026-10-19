@@ -230,6 +230,7 @@ def train_model_with_validation_split(
     split_seed=42,
     gap=None,
     verbose=True,
+    epoch_callback=None,
 ):
     if torch.cuda.is_available():
         device = torch.device("cuda")
@@ -346,6 +347,17 @@ def train_model_with_validation_split(
             print(f"Epoch {epoch + 1}/{num_epochs}")
             print(
                 f"Train loss: {avg_train_loss:.4f} | Val loss: {avg_val_loss:.4f} | Val R2: {val_metrics['R2']:.4f}"
+            )
+
+        if epoch_callback is not None:
+            epoch_callback(
+                epoch + 1,
+                num_epochs,
+                {
+                    "train_loss": float(avg_train_loss),
+                    "val_loss": float(avg_val_loss),
+                    "val_r2": float(val_metrics["R2"]),
+                },
             )
 
         # Early stopping
