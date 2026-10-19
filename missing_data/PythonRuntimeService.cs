@@ -110,7 +110,8 @@ namespace missing_data
 
         public Task<PythonProcessResult> RunOptunaTrainingAsync(
             string inputPath, string clustersPath, string outputPath,
-            int trials, int jobs, string jobId, CancellationToken cancellationToken,
+            int trials, int startupTrials, int jobs,
+            string jobId, CancellationToken cancellationToken,
             Action<string, bool> outputCallback = null)
         {
             Directory.CreateDirectory(outputPath);
@@ -140,7 +141,9 @@ namespace missing_data
                 "--input " + Quote(inputPath) + " " +
                 "--cluster " + Quote(clustersPath) + " " +
                 "--output " + Quote(outputPath) + " " +
-                "--trials " + trials + " --jobs " + jobs + " " +
+                "--trials " + trials + " " +
+                "--startup-trials " + startupTrials + " " +
+                "--jobs " + jobs + " " +
                 "--job-id " + Quote(jobId) + " " +
                 "--contract " + Quote(contractPath) + " " +
                 "--progress " + Quote(progressPath);

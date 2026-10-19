@@ -151,6 +151,8 @@ namespace missing_data
         private NumericUpDown numEpochsNumBox;
         private NumericUpDown patienceNumBox;
         private NumericUpDown optunaJobsNumBox;
+        private NumericUpDown optunaTrialsNumBox;
+        private NumericUpDown optunaStartupTrialsNumBox;
         private TextBox targetFeatureTextBox;
 
 
@@ -380,6 +382,20 @@ namespace missing_data
                 processorCount,
                 1,
                 processorCount);
+            optunaTrialsNumBox = AddIntegerRow(
+                optunaLayout,
+                "Trials:",
+                1,
+                30,
+                1,
+                10000);
+            optunaStartupTrialsNumBox = AddIntegerRow(
+                optunaLayout,
+                "Startup trials:",
+                2,
+                3,
+                0,
+                10000);
 
             var optunaGroup = new GroupBox
             {
@@ -1060,14 +1076,29 @@ namespace missing_data
                 AppendTrainingStatus("Optuna script: " + pythonRuntimeService.OptunaScript);
                 AppendTrainingStatus("Output directory: " + outputPath);
                 int optunaJobs = (int)optunaJobsNumBox.Value;
+                int optunaTrials = (int)optunaTrialsNumBox.Value;
+                int optunaStartupTrials = (int)optunaStartupTrialsNumBox.Value;
+                if (optunaStartupTrials > optunaTrials)
+                {
+                    MessageBox.Show(
+                        "Startup trials cannot be greater than the total number of trials.",
+                        "Invalid Optuna configuration",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
                 AppendTrainingStatus("Optuna jobs: " + optunaJobs);
+                AppendTrainingStatus("Optuna trials: " + optunaTrials);
+                AppendTrainingStatus("Optuna startup trials: " + optunaStartupTrials);
 
                 var result = await RunPythonWithProgressAsync(
                     () => pythonRuntimeService.RunOptunaTrainingAsync(
                         inputPath,
                         clustersPath,
                         outputPath,
-                        trials: 30,
+                        trials: optunaTrials,
+                        startupTrials: optunaStartupTrials,
                         jobs: optunaJobs,
                         jobId: jobId,
                         cancellationToken: cancellationToken,

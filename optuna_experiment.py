@@ -378,6 +378,7 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
         target_feature="VS",
         n_trials=30,
         n_jobs=10,
+        n_startup_trials=3,
     ):
         wells_with_target = [
             df for df in wells_data if target_feature in df.columns
@@ -449,7 +450,9 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
                 storage=storage,
                 direction="maximize",
                 load_if_exists=True,
-                pruner=optuna.pruners.MedianPruner(n_startup_trials=3),
+                pruner=optuna.pruners.MedianPruner(
+                    n_startup_trials=n_startup_trials
+                ),
             )
             def on_trial_complete(study, trial):
                 if self.progress_callback is None:
@@ -544,6 +547,7 @@ def main():
         help="Training data source (default: payload)",
     )
     parser.add_argument("--trials", type=int, default=30)
+    parser.add_argument("--startup-trials", type=int, default=3)
     default_model_root = Path(__file__).resolve().parent / "data" / "petrobras"
     parser.add_argument(
         "--model_root",
@@ -620,8 +624,19 @@ def main():
             results_dir=args.output,
             progress_callback=report_optuna_progress,
         )
+        if args.trials < 1:
+            parser.error("--trials must be at least 1")
+        if args.startup_trials < 0 or args.startup_trials > args.trials:
+            parser.error("--startup-trials must be between 0 and --trials")
+        if args.jobs < 1:
+            parser.error("--jobs must be at least 1")
+
         best_config = experiment.run_optuna_optimization(
-            feature_combinations, wells_with_vs, n_trials=args.trials, n_jobs=args.jobs
+            feature_combinations,
+            wells_with_vs,
+            n_trials=args.trials,
+            n_jobs=args.jobs,
+            n_startup_trials=args.startup_trials,
         )
         experiment.save_best_config(best_config)
 
