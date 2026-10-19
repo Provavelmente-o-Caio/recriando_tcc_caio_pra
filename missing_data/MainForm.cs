@@ -850,9 +850,7 @@ namespace missing_data
             {
                 trainingCancellationSource = new CancellationTokenSource();
                 CancellationToken cancellationToken = trainingCancellationSource.Token;
-                trainingButton.Enabled = false;
-                cancelTrainingButton.Enabled = true;
-                trainingProgressBar.Visible = true;
+                SetTrainingUiState(true);
 
                 var selectedWells = GetSelectedWells(clb);
 
@@ -879,69 +877,13 @@ namespace missing_data
                 AppendStatus("Python executable: " + pythonRuntimeService.PythonExecutable);
                 AppendStatus("Runner script: " + pythonRuntimeService.PredictorScript);
 
-                var result = await RunPythonWithProgressAsync(
-                    () => pythonRuntimeService.AnalyzeAsync(
-                        inputPath,
-                        analysisOutputPath,
-                        jobId,
-                        cancellationToken,
-                        (line, isError) => AppendPythonOutput(
-                            AppendStatus,
-                            line,
-                            isError)),
+                var analysisOutput = await AnalyzeClustersAsync(
+                    inputPath,
                     analysisOutputPath,
                     jobId,
+                    cancellationToken,
                     trainingProgressBar,
-                    AppendStatus,
-                    "analyze");
-
-                if (result.ExitCode != 0)
-                {
-                    MessageBox.Show(
-                        GetPythonErrorMessage(result),
-                        "Python analysis failed",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error
-                        );
-
-                    return;
-                }
-
-                if (!File.Exists(analysisOutputPath))
-                {
-                    MessageBox.Show(
-                        "Python finished but did not generate output JSON.",
-                        "Missing output",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error
-                    );
-
-                    return;
-                }
-
-                // AppendStatus("Reading cluster analysis result...");
-
-                string outputJson = File.ReadAllText(analysisOutputPath);
-
-                var analysisOutput = JsonConvert.DeserializeObject<ClusterAnalysisOutput>(
-                    outputJson
-                );
-
-                if (analysisOutput == null
-                    || analysisOutput.SchemaVersion != 1
-                    || analysisOutput.JobId != jobId)
-                {
-                    throw new InvalidOperationException(
-                        "Could not parse cluster analysis output JSON."
-                    );
-                }
-
-                if (analysisOutput.Status != "success")
-                {
-                    throw new InvalidOperationException(
-                        "Cluster analysis did not finish successfully."
-                    );
-                }
+                    AppendStatus);
 
                 AppendStatus("Clusters found: " + analysisOutput.Clusters.Count);
 
@@ -966,17 +908,9 @@ namespace missing_data
                     return;
                 }
 
-                var payload_clusters = new
-                {
-                    clusters
-                };
-
                 string clustersPath = Path.Combine(workDir, "clusters.json");
 
-                File.WriteAllText(
-                    clustersPath,
-                    JsonConvert.SerializeObject(payload_clusters, Formatting.Indented)
-                );
+                WriteClustersFile(clustersPath, clusters);
 
                     var result_clusters = await RunPythonWithProgressAsync(
                         () => pythonRuntimeService.TrainAsync(
@@ -1045,9 +979,7 @@ namespace missing_data
             }
             finally
             {
-                trainingButton.Enabled = true;
-                cancelTrainingButton.Enabled = false;
-                trainingProgressBar.Visible = false;
+                SetTrainingUiState(false);
                 trainingCancellationSource?.Dispose();
                 trainingCancellationSource = null;
             }
@@ -1069,11 +1001,7 @@ namespace missing_data
                 }
 
                 var selectedWells = GetSelectedWells(clb);
-                trainingButton.Enabled = false;
-                cancelTrainingButton.Enabled = true;
-                trainingProgressBar.Visible = true;
-                trainingProgressBar.BringToFront();
-                trainingProgressBar.Refresh();
+                SetTrainingUiState(true);
                 trainingCancellationSource = new CancellationTokenSource();
                 CancellationToken cancellationToken = trainingCancellationSource.Token;
                 var selectedConfiguration = getCurveMapping();
@@ -1092,45 +1020,13 @@ namespace missing_data
                     JsonConvert.SerializeObject(payload, Formatting.Indented));
 
                 AppendTrainingStatus("Analyzing clusters before Optuna training...");
-                var analysisResult = await RunPythonWithProgressAsync(
-                    () => pythonRuntimeService.AnalyzeAsync(
-                        inputPath,
-                        analysisOutputPath,
-                        jobId,
-                        cancellationToken,
-                        (line, isError) => AppendPythonOutput(
-                            AppendTrainingStatus,
-                            line,
-                            isError)),
+                var analysisOutput = await AnalyzeClustersAsync(
+                    inputPath,
                     analysisOutputPath,
                     jobId,
+                    cancellationToken,
                     trainingProgressBar,
-                    AppendTrainingStatus,
-                    "analyze");
-
-                if (analysisResult.ExitCode != 0)
-                {
-                    MessageBox.Show(
-                        GetPythonErrorMessage(analysisResult),
-                        "Cluster analysis failed",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error);
-                    return;
-                }
-
-                if (!File.Exists(analysisOutputPath))
-                    throw new InvalidOperationException(
-                        "Cluster analysis finished without generating an output JSON.");
-
-                var analysisOutput = JsonConvert.DeserializeObject<ClusterAnalysisOutput>(
-                    File.ReadAllText(analysisOutputPath));
-
-                if (analysisOutput == null
-                    || analysisOutput.SchemaVersion != 1
-                    || analysisOutput.JobId != jobId
-                    || analysisOutput.Status != "success")
-                    throw new InvalidOperationException(
-                        "Cluster analysis did not finish successfully.");
+                    AppendTrainingStatus);
 
                 AppendTrainingStatus(
                     "Clusters found: " + analysisOutput.Clusters.Count);
@@ -1153,14 +1049,7 @@ namespace missing_data
                     return;
                 }
 
-                File.WriteAllText(
-                    clustersPath,
-                    JsonConvert.SerializeObject(
-                        new
-                        {
-                            clusters = clusterForm.EditedClusters
-                        },
-                        Formatting.Indented));
+                WriteClustersFile(clustersPath, clusterForm.EditedClusters);
                 string outputPath = Path.Combine(workDir, "optuna_results");
 
                 AppendTrainingStatus("Starting Optuna training with the analyzed clusters...");
@@ -1238,9 +1127,7 @@ namespace missing_data
             }
             finally
             {
-                trainingButton.Enabled = true;
-                cancelTrainingButton.Enabled = false;
-                trainingProgressBar.Visible = false;
+                SetTrainingUiState(false);
                 trainingCancellationSource?.Dispose();
                 trainingCancellationSource = null;
             }
@@ -1273,7 +1160,6 @@ namespace missing_data
 
             try
             {
-                predictionButton.Enabled = false;
                 AppendStatus("Starting cluster analysis...");
 
                 var selectedWells = GetSelectedWells(clb);
@@ -1292,10 +1178,7 @@ namespace missing_data
 
                 predictionCancellationSource = new CancellationTokenSource();
                 CancellationToken cancellationToken = predictionCancellationSource.Token;
-                cancelPredictionButton.Enabled = true;
-                predictionProgressBar.Visible = true;
-                predictionProgressBar.BringToFront();
-                predictionProgressBar.Refresh();
+                SetPredictionUiState(true);
 
                 var selectedPredictionConfiguration = getCurveMapping();
                 var pythonConfiguration = GetPythonConfiguration();
@@ -1321,69 +1204,15 @@ namespace missing_data
                 AppendStatus("Python executable: " + pythonRuntimeService.PythonExecutable);
                 AppendStatus("Runner script: " + pythonRuntimeService.PredictorScript);
 
-                var result = await RunPythonWithProgressAsync(
-                    () => pythonRuntimeService.AnalyzeAsync(
-                        inputPath,
-                        analysisOutputPath,
-                        jobId,
-                        cancellationToken,
-                        (line, isError) => AppendPythonOutput(
-                            AppendStatus,
-                            line,
-                            isError)),
+                var analysisOutput = await AnalyzeClustersAsync(
+                    inputPath,
                     analysisOutputPath,
                     jobId,
+                    cancellationToken,
                     predictionProgressBar,
-                    AppendStatus,
-                    "analyze");
-
-                if (result.ExitCode != 0)
-                {
-                    MessageBox.Show(
-                        GetPythonErrorMessage(result),
-                        "Python analysis failed",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error
-                        );
-
-                    return;
-                }
-
-                if (!File.Exists(analysisOutputPath))
-                {
-                    MessageBox.Show(
-                        "Python finished but did not generate output JSON.",
-                        "Missing output",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error
-                    );
-
-                    return;
-                }
+                    AppendStatus);
 
                 AppendStatus("Reading cluster analysis result...");
-
-                string outputJson = File.ReadAllText(analysisOutputPath);
-
-                var analysisOutput = JsonConvert.DeserializeObject<ClusterAnalysisOutput>(
-                    outputJson
-                );
-
-                if (analysisOutput == null
-                    || analysisOutput.SchemaVersion != 1
-                    || analysisOutput.JobId != jobId)
-                {
-                    throw new InvalidOperationException(
-                        "Could not parse cluster analysis output JSON."
-                    );
-                }
-
-                if (analysisOutput.Status != "success")
-                {
-                    throw new InvalidOperationException(
-                        "Cluster analysis did not finish successfully."
-                    );
-                }
 
                 AppendStatus("Clusters found: " + analysisOutput.Clusters.Count);
 
@@ -1408,17 +1237,9 @@ namespace missing_data
                     return;
                 }
 
-                var payload_clusters = new
-                {
-                    clusters
-                };
-
                 string clustersPath = Path.Combine(workDir, "clusters.json");
 
-                File.WriteAllText(
-                    clustersPath,
-                    JsonConvert.SerializeObject(payload_clusters, Formatting.Indented)
-                );
+                WriteClustersFile(clustersPath, clusters);
 
                     var result_clusters = await RunPythonWithProgressAsync(
                         () => pythonRuntimeService.PredictAsync(
@@ -1501,12 +1322,91 @@ namespace missing_data
             }
             finally
             {
-                predictionButton.Enabled = true;
-                cancelPredictionButton.Enabled = false;
-                predictionProgressBar.Visible = false;
+                SetPredictionUiState(false);
                 predictionCancellationSource?.Dispose();
                 predictionCancellationSource = null;
             }
+        }
+
+        private async Task<ClusterAnalysisOutput> AnalyzeClustersAsync(
+            string inputPath,
+            string outputPath,
+            string jobId,
+            CancellationToken cancellationToken,
+            ProgressBar progressBar,
+            Action<string> appendStatus)
+        {
+            PythonProcessResult result = await RunPythonWithProgressAsync(
+                () => pythonRuntimeService.AnalyzeAsync(
+                    inputPath,
+                    outputPath,
+                    jobId,
+                    cancellationToken,
+                    (line, isError) => AppendPythonOutput(
+                        appendStatus,
+                        line,
+                        isError)),
+                outputPath,
+                jobId,
+                progressBar,
+                appendStatus,
+                "analyze");
+
+            if (result.ExitCode != 0)
+                throw new InvalidOperationException(
+                    GetPythonErrorMessage(result));
+
+            if (!File.Exists(outputPath))
+                throw new InvalidOperationException(
+                    "Python finished but did not generate cluster analysis output.");
+
+            ClusterAnalysisOutput analysisOutput =
+                JsonConvert.DeserializeObject<ClusterAnalysisOutput>(
+                    File.ReadAllText(outputPath));
+            if (analysisOutput == null
+                || analysisOutput.SchemaVersion != 1
+                || analysisOutput.JobId != jobId
+                || analysisOutput.Status != "success"
+                || analysisOutput.Clusters == null)
+                throw new InvalidOperationException(
+                    "Cluster analysis produced an invalid or stale result contract.");
+
+            return analysisOutput;
+        }
+
+        private void SetTrainingUiState(bool running)
+        {
+            trainingButton.Enabled = !running;
+            cancelTrainingButton.Enabled = running;
+            trainingProgressBar.Visible = running;
+            if (running)
+            {
+                trainingProgressBar.BringToFront();
+                trainingProgressBar.Refresh();
+            }
+        }
+
+        private void SetPredictionUiState(bool running)
+        {
+            predictionButton.Enabled = !running;
+            cancelPredictionButton.Enabled = running;
+            predictionProgressBar.Visible = running;
+            if (running)
+            {
+                predictionProgressBar.BringToFront();
+                predictionProgressBar.Refresh();
+            }
+        }
+
+        private static void WriteClustersFile(
+            string path,
+            Dictionary<string, List<int>> clusters)
+        {
+            File.WriteAllText(
+                path,
+                JsonConvert.SerializeObject(
+                    new { clusters },
+                    Formatting.Indented));
         }
 
         private async Task<PythonProcessResult> RunPythonWithProgressAsync(
