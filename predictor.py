@@ -10,6 +10,11 @@ import lasio as ls
 import numpy as np
 import polars as pl
 import torch
+from execution_contract import (
+    emit_progress,
+    write_execution_contract,
+    write_progress_contract,
+)
 
 from crossfold_hyperparamet_experiment import CrossFoldHyperparameterExperiment
 from utils.modelTrainer import (
@@ -753,6 +758,8 @@ def main():
     )
     parser.add_argument("--experiment_dir", type=str, help="Experiment directory")
     parser.add_argument("--job-id", required=True, help="Unique execution identifier")
+    parser.add_argument("--contract", required=True, help="Execution contract path")
+    parser.add_argument("--progress", required=True, help="Progress contract path")
     default_model_root = Path(__file__).resolve().parent / "data" / "petrobras"
     parser.add_argument(
         "--model-root",
@@ -761,16 +768,48 @@ def main():
     )
     args = parser.parse_args()
 
-    predictor = Predictor(model_root=args.model_root, device=None)
-    match args.mode:
-        case "analyze":
-            predictor.analyze(args.input, args.output, args.job_id)
-        case "train":
-            predictor.train(args.input, args.output, args.cluster, args.job_id)
-        case "predict":
-            predictor.predict(
-                args.input, args.output, args.cluster, args.experiment_dir, args.job_id
-            )
+    write_execution_contract(
+        args.contract, args.job_id, args.mode, "running", "Execution started."
+    )
+    emit_progress(args.progress, args.job_id, args.mode, 0, "starting", "Execution started.")
+
+    try:
+        predictor = Predictor(model_root=args.model_root, device=None)
+        emit_progress(args.progress, args.job_id, args.mode, 10, "loading", "Input loading started.")
+        match args.mode:
+            case "analyze":
+                predictor.analyze(args.input, args.output, args.job_id)
+            case "train":
+                predictor.train(args.input, args.output, args.cluster, args.job_id)
+            case "predict":
+                predictor.predict(
+                    args.input, args.output, args.cluster, args.experiment_dir, args.job_id
+                )
+        emit_progress(args.progress, args.job_id, args.mode, 100, "completed", "Execution completed.")
+        write_execution_contract(
+            args.contract, args.job_id, args.mode, "success", "Execution completed."
+        )
+    except KeyboardInterrupt:
+        write_progress_contract(
+            args.progress, args.job_id, args.mode, 100, "cancelled", "Execution cancelled."
+        )
+        write_execution_contract(
+            args.contract, args.job_id, args.mode, "cancelled", "Execution cancelled."
+        )
+        raise
+    except Exception as error:
+        write_progress_contract(
+            args.progress, args.job_id, args.mode, 100, "error", str(error)
+        )
+        write_execution_contract(
+            args.contract,
+            args.job_id,
+            args.mode,
+            "error",
+            str(error),
+            type(error).__name__,
+        )
+        raise
 
 
 if __name__ == "__main__":

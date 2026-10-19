@@ -133,6 +133,7 @@ namespace missing_data
         private ProgressBar trainingProgressBar;
         private CancellationTokenSource predictionCancellationSource;
         private CancellationTokenSource trainingCancellationSource;
+        private readonly PythonRuntimeService pythonRuntimeService;
         private ComboBox vsComboBox;
         private ComboBox vpComboBox;
         private ComboBox rhoComboBox;
@@ -166,6 +167,7 @@ namespace missing_data
             project = PetrelProject.PrimaryProject ?? throw new InvalidOperationException("No active Petrel Project.");
             wellroot = WellRoot.Get(project) ?? throw new InvalidOperationException("WellRoot not found");
 
+            pythonRuntimeService = new PythonRuntimeService();
             InitializeComponent();
             BuildLayout();
         }
@@ -838,48 +840,10 @@ namespace missing_data
 
                 File.WriteAllText(inputPath, json);
 
-                string projectDir = GetPythonProjectDirectory();
+                AppendStatus("Python executable: " + pythonRuntimeService.PythonExecutable);
+                AppendStatus("Runner script: " + pythonRuntimeService.PredictorScript);
 
-                string pythonExe = Path.Combine(
-                    projectDir,
-                    ".venv",
-                    "Scripts",
-                    "python.exe"
-                );
-
-                string runnerPath = Path.Combine(
-                    projectDir,
-                    "predictor.py"
-                );
-
-                AppendStatus(
-                    "Python executable: " + pythonExe
-                );
-
-                AppendStatus(
-                    "Runner script: " + runnerPath
-                );
-
-                if (!File.Exists(pythonExe))
-                {
-                    throw new FileNotFoundException(
-                        "Python executable not found.",
-                        pythonExe
-                    );
-                }
-
-                if (!File.Exists(runnerPath))
-                {
-                    throw new FileNotFoundException(
-                        "Predictor script not found.",
-                        runnerPath
-                    );
-                }
-
-                var result = await Utils.RunPythonAnalysisAsync(
-                    pythonExe,
-                    runnerPath,
-                    "analyze",
+                var result = await pythonRuntimeService.AnalyzeAsync(
                     inputPath,
                     analysisOutputPath,
                     jobId
@@ -980,9 +944,7 @@ namespace missing_data
                     JsonConvert.SerializeObject(payload_clusters, Formatting.Indented)
                 );
 
-                    var result_clusters = await Utils.RunPythonTrainingAsync(
-                        pythonExe,
-                        runnerPath,
+                    var result_clusters = await pythonRuntimeService.TrainAsync(
                         inputPath,
                         outputPath,
                         clustersPath,
@@ -1082,10 +1044,6 @@ namespace missing_data
                 CancellationToken cancellationToken = trainingCancellationSource.Token;
                 var selectedConfiguration = getCurveMapping();
                 var pythonConfiguration = GetPythonConfiguration();
-                string projectDir = GetPythonProjectDirectory();
-                string pythonExe = Path.Combine(projectDir, ".venv", "Scripts", "python.exe");
-                string runnerPath = Path.Combine(projectDir, "predictor.py");
-                string optunaScriptPath = Path.Combine(projectDir, "optuna_experiment.py");
                 string jobId;
                 string workDir = CreateJobDirectory("optuna_training", out jobId);
                 string inputPath = Path.Combine(workDir, "optuna_training_input.json");
@@ -1099,17 +1057,8 @@ namespace missing_data
                     inputPath,
                     JsonConvert.SerializeObject(payload, Formatting.Indented));
 
-                if (!File.Exists(pythonExe))
-                    throw new FileNotFoundException("Python executable not found.", pythonExe);
-
-                if (!File.Exists(runnerPath))
-                    throw new FileNotFoundException("Predictor script not found.", runnerPath);
-
                 AppendTrainingStatus("Analyzing clusters before Optuna training...");
-                var analysisResult = await Utils.RunPythonAnalysisAsync(
-                    pythonExe,
-                    runnerPath,
-                    "analyze",
+                var analysisResult = await pythonRuntimeService.AnalyzeAsync(
                     inputPath,
                     analysisOutputPath,
                     jobId,
@@ -1175,14 +1124,12 @@ namespace missing_data
                 AppendTrainingStatus("Selected wells: " + selectedWells.Count);
                 AppendTrainingStatus("Clusters JSON: " + clustersPath);
                 AppendTrainingStatus("Input JSON: " + inputPath);
-                AppendTrainingStatus("Optuna script: " + optunaScriptPath);
+                AppendTrainingStatus("Optuna script: " + pythonRuntimeService.OptunaScript);
                 AppendTrainingStatus("Output directory: " + outputPath);
                 int processorCount = Math.Max(1, Environment.ProcessorCount);
                 AppendTrainingStatus("Optuna jobs: " + processorCount);
 
-                var result = await Utils.RunPythonOptunaTrainingAsync(
-                    pythonExe,
-                    optunaScriptPath,
+                var result = await pythonRuntimeService.RunOptunaTrainingAsync(
                     inputPath,
                     clustersPath,
                     outputPath,
@@ -1318,48 +1265,10 @@ namespace missing_data
 
                 AppendStatus("Data saved on: " + inputPath);
 
-                string projectDir = GetPythonProjectDirectory();
+                AppendStatus("Python executable: " + pythonRuntimeService.PythonExecutable);
+                AppendStatus("Runner script: " + pythonRuntimeService.PredictorScript);
 
-                string pythonExe = Path.Combine(
-                    projectDir,
-                    ".venv",
-                    "Scripts",
-                    "python.exe"
-                );
-
-                string runnerPath = Path.Combine(
-                    projectDir,
-                    "predictor.py"
-                );
-
-                AppendStatus(
-                    "Python executable: " + pythonExe
-                );
-
-                AppendStatus(
-                    "Runner script: " + runnerPath
-                );
-
-                if (!File.Exists(pythonExe))
-                {
-                    throw new FileNotFoundException(
-                        "Python executable not found.",
-                        pythonExe
-                    );
-                }
-
-                if (!File.Exists(runnerPath))
-                {
-                    throw new FileNotFoundException(
-                        "Predictor script not found.",
-                        runnerPath
-                    );
-                }
-
-                var result = await Utils.RunPythonAnalysisAsync(
-                    pythonExe,
-                    runnerPath,
-                    "analyze",
+                var result = await pythonRuntimeService.AnalyzeAsync(
                     inputPath,
                     analysisOutputPath,
                     jobId,
@@ -1461,9 +1370,7 @@ namespace missing_data
                     JsonConvert.SerializeObject(payload_clusters, Formatting.Indented)
                 );
 
-                    var result_clusters = await Utils.RunPythonPredictionAsync(
-                        pythonExe,
-                        runnerPath,
+                    var result_clusters = await pythonRuntimeService.PredictAsync(
                         inputPath,
                         predictionOutputPath,
                         clustersPath,
@@ -2143,16 +2050,5 @@ namespace missing_data
             return directory;
         }
 
-        private string GetPythonProjectDirectory()
-        {
-            string configuredDirectory = Environment.GetEnvironmentVariable(
-                "RECRIANDO_TCC_HOME");
-            if (!string.IsNullOrWhiteSpace(configuredDirectory))
-                return Path.GetFullPath(configuredDirectory);
-
-            string appData = Environment.GetFolderPath(
-                Environment.SpecialFolder.ApplicationData);
-            return Path.Combine(appData, "recriando_tcc_caio_pra");
-        }
     }
 }

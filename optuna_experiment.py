@@ -14,6 +14,11 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau, StepL
 from torch.utils.data import DataLoader
 
 from crossfold_hyperparamet_experiment import CrossFoldHyperparameterExperiment
+from execution_contract import (
+    emit_progress,
+    write_execution_contract,
+    write_progress_contract,
+)
 from petrobras_dataset import filter_commom_features, read_all_wells_with_dept_to_list
 from predictor import Predictor
 from selfAttention import Rebuilt_SAIDNN
@@ -522,78 +527,127 @@ def main():
     )
     parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--job-id", required=True)
+    parser.add_argument("--contract", required=True)
+    parser.add_argument("--progress", required=True)
     args = parser.parse_args()
 
-    if args.data_source == "petrobras":
-        if args.input or args.cluster:
-            parser.error("--input and --cluster are not used with --data-source petrobras")
+    contract_path = args.contract
+    progress_path = args.progress
+    operation = "optuna_training"
+    write_execution_contract(
+        contract_path, args.job_id, operation, "running", "Execution started."
+    )
+    emit_progress(progress_path, args.job_id, operation, 0, "starting", "Execution started.")
 
-        feature_combinations = [
-            ["VP", "RHO", "GR", "CALIPER", "POROSIDADE", "SATURACAO", "ARGILOSIDADE"],
-            ["VP", "RHO", "GR", "CALIPER", "POROSIDADE", "SATURACAO"],
-            ["VP", "RHO", "ACOUSTIC_IMP", "GR", "POROSIDADE", "SATURACAO"],
-            ["VP", "RHO", "POROSIDADE", "GR", "ARGILOSIDADE"],
-            ["VP", "RHO", "POROSIDADE", "SATURACAO"],
-        ]
-        wells = read_all_wells_with_dept_to_list(features="all")
-        wells = filter_commom_features(wells, ignore=["VS"])
-        wells = [add_derived_features(df) for df in wells]
-        wells_with_vs = [df for df in wells if "VS" in df.columns]
-        wells_without_vs = [df for df in wells if "VS" not in df.columns]
-        if len(wells_with_vs) != 5:
-            raise ValueError(
-                "Expected five Petrobras wells with measured VS (WELL_2-WELL_6); "
-                f"found {len(wells_with_vs)}."
+    try:
+        emit_progress(
+            progress_path, args.job_id, operation, 10, "loading", "Input loading started."
+        )
+        if args.data_source == "petrobras":
+            if args.input or args.cluster:
+                parser.error("--input and --cluster are not used with --data-source petrobras")
+
+            feature_combinations = [
+                ["VP", "RHO", "GR", "CALIPER", "POROSIDADE", "SATURACAO", "ARGILOSIDADE"],
+                ["VP", "RHO", "GR", "CALIPER", "POROSIDADE", "SATURACAO"],
+                ["VP", "RHO", "ACOUSTIC_IMP", "GR", "POROSIDADE", "SATURACAO"],
+                ["VP", "RHO", "POROSIDADE", "GR", "ARGILOSIDADE"],
+                ["VP", "RHO", "POROSIDADE", "SATURACAO"],
+            ]
+            wells = read_all_wells_with_dept_to_list(features="all")
+            wells = filter_commom_features(wells, ignore=["VS"])
+            wells = [add_derived_features(df) for df in wells]
+            wells_with_vs = [df for df in wells if "VS" in df.columns]
+            wells_without_vs = [df for df in wells if "VS" not in df.columns]
+            if len(wells_with_vs) != 5:
+                raise ValueError(
+                    "Expected five Petrobras wells with measured VS (WELL_2-WELL_6); "
+                    f"found {len(wells_with_vs)}."
+                )
+            base_config = {
+                "sequence_length": 15,
+                "mask_value": -1.0,
+                "num_epochs": 500,
+                "patience": 150,
+                "target_feature": "VS",
+                "clusters": {"petrobras_all_measured_vs": list(range(len(wells_with_vs)))},
+            }
+        else:
+            if not args.input or not args.cluster:
+                parser.error("--input and --cluster are required with --data-source payload")
+            predictor = Predictor(model_root=args.model_root, device=None)
+            base_config, feature_combinations, wells_with_vs, wells_without_vs = (
+                predictor.prediction_setup(args.input, args.output, args.cluster)
             )
-        base_config = {
-            "sequence_length": 15,
-            "mask_value": -1.0,
-            "num_epochs": 500,
-            "patience": 150,
-            "target_feature": "VS",
-            "clusters": {"petrobras_all_measured_vs": list(range(len(wells_with_vs)))},
-        }
-    else:
-        if not args.input or not args.cluster:
-            parser.error("--input and --cluster are required with --data-source payload")
-        predictor = Predictor(model_root=args.model_root, device=None)
-        base_config, feature_combinations, wells_with_vs, wells_without_vs = (
-            predictor.prediction_setup(args.input, args.output, args.cluster)
-        )
 
-    experiment = OptunaCrossFoldExperiment(base_config, results_dir=args.output)
-    best_config = experiment.run_optuna_optimization(
-        feature_combinations, wells_with_vs, n_trials=args.trials, n_jobs=args.jobs
-    )
-    experiment.save_best_config(best_config)
-
-    final_output_dir = os.path.join(args.output, "final_model")
-    trainer = FinalModelTrainer(
-        load_best_configuration(args.output), base_config, output_dir=final_output_dir
-    )
-    trained_clusters = trainer.train_final_model(
-        wells_with_vs, target_feature=base_config["target_feature"]
-    )
-    all_results = trainer.predict_on_wells(
-        trained_clusters,
-        wells_without_vs,
-        wells_with_vs,
-        target_feature=base_config["target_feature"],
-    )
-    trainer.plot_predictions(all_results)
-    trainer.generate_summary_report(all_results, load_best_configuration(args.output))
-    with open(os.path.join(args.output, "training_result.json"), "w", encoding="utf-8") as file_handle:
-        json.dump(
-            {
-                "schema_version": 1,
-                "job_id": args.job_id,
-                "status": "success",
-                "experiment_dir": os.path.abspath(args.output),
-                "final_model_dir": os.path.abspath(final_output_dir),
-            },
-            file_handle,
-            indent=2,
+        experiment = OptunaCrossFoldExperiment(base_config, results_dir=args.output)
+        best_config = experiment.run_optuna_optimization(
+            feature_combinations, wells_with_vs, n_trials=args.trials, n_jobs=args.jobs
         )
+        experiment.save_best_config(best_config)
+
+        emit_progress(
+            progress_path,
+            args.job_id,
+            operation,
+            90,
+            "finalizing",
+            "Final models and reports are being written.",
+        )
+        final_output_dir = os.path.join(args.output, "final_model")
+        trainer = FinalModelTrainer(
+            load_best_configuration(args.output), base_config, output_dir=final_output_dir
+        )
+        trained_clusters = trainer.train_final_model(
+            wells_with_vs, target_feature=base_config["target_feature"]
+        )
+        all_results = trainer.predict_on_wells(
+            trained_clusters,
+            wells_without_vs,
+            wells_with_vs,
+            target_feature=base_config["target_feature"],
+        )
+        trainer.plot_predictions(all_results)
+        trainer.generate_summary_report(all_results, load_best_configuration(args.output))
+        with open(os.path.join(args.output, "training_result.json"), "w", encoding="utf-8") as file_handle:
+            json.dump(
+                {
+                    "schema_version": 1,
+                    "job_id": args.job_id,
+                    "status": "success",
+                    "experiment_dir": os.path.abspath(args.output),
+                    "final_model_dir": os.path.abspath(final_output_dir),
+                },
+                file_handle,
+                indent=2,
+            )
+        emit_progress(
+            progress_path, args.job_id, operation, 100, "completed", "Execution completed."
+        )
+        write_execution_contract(
+            contract_path, args.job_id, operation, "success", "Execution completed."
+        )
+    except KeyboardInterrupt:
+        write_progress_contract(
+            progress_path, args.job_id, operation, 100, "cancelled", "Execution cancelled."
+        )
+        write_execution_contract(
+            contract_path, args.job_id, operation, "cancelled", "Execution cancelled."
+        )
+        raise
+    except Exception as error:
+        write_progress_contract(
+            progress_path, args.job_id, operation, 100, "error", str(error)
+        )
+        write_execution_contract(
+            contract_path,
+            args.job_id,
+            operation,
+            "error",
+            str(error),
+            type(error).__name__,
+        )
+        raise
 
 
 if __name__ == "__main__":
