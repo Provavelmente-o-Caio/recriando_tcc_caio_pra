@@ -398,7 +398,7 @@ namespace missing_data
 
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 15));
 
             var wellDropTarget = new Slb.Ocean.Petrel.UI.DropTarget
             {
@@ -517,16 +517,17 @@ namespace missing_data
             var actionPanel = new TableLayoutPanel
             {
                 Dock = DockStyle.Bottom,
-                Height = 52,
-                ColumnCount = 2,
-                RowCount = 2
+                ColumnCount = 1,
+                RowCount = 3,
+                Padding = new Padding(0)
             };
             actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70));
             actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
             actionPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            actionPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
             actionPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 10));
             actionPanel.Controls.Add(predictionButton, 0, 0);
-            actionPanel.Controls.Add(cancelPredictionButton, 1, 0);
+            actionPanel.Controls.Add(cancelPredictionButton, 0, 1);
 
             predictionProgressBar = new ProgressBar
             {
@@ -535,8 +536,7 @@ namespace missing_data
                 Dock = DockStyle.Fill,
                 Visible = false
             };
-            actionPanel.Controls.Add(predictionProgressBar, 0, 1);
-            actionPanel.SetColumnSpan(predictionProgressBar, 2);
+            actionPanel.Controls.Add(predictionProgressBar, 0, 2);
 
             group.Controls.Add(actionPanel);
             group.Controls.Add(layout);
@@ -642,7 +642,7 @@ namespace missing_data
 
             var container = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill,
+                Dock = DockStyle.Bottom,
                 ColumnCount = 1,
                 RowCount = 3,
                 Padding = new Padding(0)
