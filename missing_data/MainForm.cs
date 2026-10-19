@@ -954,6 +954,20 @@ namespace missing_data
 
                 var clusters = form.EditedClusters;
 
+                string clusterValidationError = ValidateEditedClusters(
+                    clusters,
+                    selectedWells,
+                    selectedTrainingConfiguration);
+                if (!string.IsNullOrWhiteSpace(clusterValidationError))
+                {
+                    MessageBox.Show(
+                        clusterValidationError,
+                        "Invalid clusters",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
                 var payload_clusters = new
                 {
                     clusters
@@ -1132,6 +1146,20 @@ namespace missing_data
                 var clusterForm = new ClusterAnalysisVisualizationForm(analysisOutput);
                 if (clusterForm.ShowDialog() != DialogResult.OK)
                     return;
+
+                string clusterValidationError = ValidateEditedClusters(
+                    clusterForm.EditedClusters,
+                    selectedWells,
+                    selectedConfiguration);
+                if (!string.IsNullOrWhiteSpace(clusterValidationError))
+                {
+                    MessageBox.Show(
+                        clusterValidationError,
+                        "Invalid clusters",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
 
                 File.WriteAllText(
                     clustersPath,
@@ -1406,6 +1434,20 @@ namespace missing_data
                     return;
 
                 var clusters = form.EditedClusters;
+
+                string clusterValidationError = ValidateEditedClusters(
+                    clusters,
+                    selectedWells,
+                    selectedPredictionConfiguration);
+                if (!string.IsNullOrWhiteSpace(clusterValidationError))
+                {
+                    MessageBox.Show(
+                        clusterValidationError,
+                        "Invalid clusters",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
 
                 var payload_clusters = new
                 {
@@ -1896,6 +1938,80 @@ namespace missing_data
                 wells,
                 pythonConfiguration
             };
+        }
+
+        private string ValidateEditedClusters(
+            Dictionary<string, List<int>> clusters,
+            List<Borehole> selectedWells,
+            Dictionary<string, string> curveMapping)
+        {
+            if (clusters == null || clusters.Count == 0)
+                return "At least one cluster must be provided.";
+
+            var invalidNames = clusters.Keys
+                .Where(name => string.IsNullOrWhiteSpace(name))
+                .ToList();
+            if (invalidNames.Count > 0)
+                return "Every cluster must have a non-empty name.";
+
+            var duplicateNames = clusters.Keys
+                .GroupBy(name => name.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Where(group => group.Count() > 1)
+                .Select(group => group.Key)
+                .ToList();
+            if (duplicateNames.Count > 0)
+            {
+                return "Cluster names must be unique. Duplicated names: "
+                    + string.Join(", ", duplicateNames) + ".";
+            }
+
+            string vsLogName;
+            if (curveMapping == null
+                || !curveMapping.TryGetValue("VS", out vsLogName)
+                || string.IsNullOrWhiteSpace(vsLogName))
+            {
+                return "The VS log must be configured before validating clusters.";
+            }
+
+            int labeledWellCount = selectedWells.Count(well =>
+                well != null
+                && well.Logs != null
+                && well.Logs.WellLogs.Any(log =>
+                    log != null
+                    && string.Equals(
+                        log.Name,
+                        vsLogName,
+                        StringComparison.OrdinalIgnoreCase)));
+
+            if (labeledWellCount == 0)
+                return "At least one selected well must contain the configured VS log.";
+
+            var assignedWells = new HashSet<int>();
+            foreach (var cluster in clusters)
+            {
+                if (cluster.Value == null || cluster.Value.Count == 0)
+                {
+                    return "Cluster '" + cluster.Key + "' must contain at least one well.";
+                }
+
+                foreach (int wellIndex in cluster.Value)
+                {
+                    if (wellIndex < 0 || wellIndex >= labeledWellCount)
+                    {
+                        return "Cluster '" + cluster.Key + "' contains well index "
+                            + wellIndex + ", but valid indices range from 0 to "
+                            + (labeledWellCount - 1) + " for wells containing VS.";
+                    }
+
+                    if (!assignedWells.Add(wellIndex))
+                    {
+                        return "Well index " + wellIndex
+                            + " is assigned to more than one cluster.";
+                    }
+                }
+            }
+
+            return null;
         }
 
 
