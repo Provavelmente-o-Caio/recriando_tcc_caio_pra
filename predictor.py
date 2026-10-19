@@ -3,6 +3,7 @@ import json
 import math
 import os
 import time
+from pathlib import Path
 from typing import Any, Literal
 
 import lasio as ls
@@ -743,8 +744,6 @@ def main():
     # AppendStatus("Running: " + pythonExe + " " + arguments);
     # AppendStatus("Working directory: " + workingDirectory);
     #
-    # [14:34:10] Running: C:\Users\caiof\AppData\Roaming\recriando_tcc_caio_pra\.venv\Scripts\python.exe "C:\Users\caiof\AppData\Roaming\recriando_tcc_caio_pra\predictor.py" analyze --input "C:\Users\caiof\AppData\Local\Temp\vs_predictior_petrel\cluster_analysis_input.json" --output "C:\Users\caiof\AppData\Local\Temp\vs_predictior_petrel\cluster_analysis_output.json"
-
     parser = argparse.ArgumentParser()
     parser.add_argument("mode", choices=["analyze", "train", "predict"])
     parser.add_argument("--input", type=str, help="Input file path")
@@ -754,13 +753,15 @@ def main():
     )
     parser.add_argument("--experiment_dir", type=str, help="Experiment directory")
     parser.add_argument("--job-id", required=True, help="Unique execution identifier")
+    default_model_root = Path(__file__).resolve().parent / "data" / "petrobras"
+    parser.add_argument(
+        "--model-root",
+        default=str(default_model_root),
+        help="Directory containing the source LAS files",
+    )
     args = parser.parse_args()
 
-    predictor = Predictor(
-        model_root="C:\\Users\\caiof\\AppData\\Roaming\\recriando_tcc_caio_pra\\data\\petrobras",
-        device=None,
-    )
-
+    predictor = Predictor(model_root=args.model_root, device=None)
     match args.mode:
         case "analyze":
             predictor.analyze(args.input, args.output, args.job_id)

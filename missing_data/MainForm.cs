@@ -838,15 +838,7 @@ namespace missing_data
 
                 File.WriteAllText(inputPath, json);
 
-                string appData =
-                    Environment.GetFolderPath(
-                    Environment.SpecialFolder.ApplicationData
-                );
-
-                string projectDir = Path.Combine(
-                    appData,
-                    "recriando_tcc_caio_pra"
-                );
+                string projectDir = GetPythonProjectDirectory();
 
                 string pythonExe = Path.Combine(
                     projectDir,
@@ -1076,9 +1068,7 @@ namespace missing_data
                 CancellationToken cancellationToken = trainingCancellationSource.Token;
                 var selectedConfiguration = getCurveMapping();
                 var pythonConfiguration = GetPythonConfiguration();
-                string appData = Environment.GetFolderPath(
-                    Environment.SpecialFolder.ApplicationData);
-                string projectDir = Path.Combine(appData, "recriando_tcc_caio_pra");
+                string projectDir = GetPythonProjectDirectory();
                 string pythonExe = Path.Combine(projectDir, ".venv", "Scripts", "python.exe");
                 string runnerPath = Path.Combine(projectDir, "predictor.py");
                 string optunaScriptPath = Path.Combine(projectDir, "optuna_experiment.py");
@@ -1300,15 +1290,7 @@ namespace missing_data
 
                 AppendStatus("Data saved on: " + inputPath);
 
-                string appData =
-                    Environment.GetFolderPath(
-                    Environment.SpecialFolder.ApplicationData
-                );
-
-                string projectDir = Path.Combine(
-                    appData,
-                    "recriando_tcc_caio_pra"
-                );
+                string projectDir = GetPythonProjectDirectory();
 
                 string pythonExe = Path.Combine(
                     projectDir,
@@ -2043,6 +2025,18 @@ namespace missing_data
             string directory = Path.Combine(Path.GetTempPath(), "vs_predictior_petrel", jobId);
             Directory.CreateDirectory(directory);
             return directory;
+        }
+
+        private string GetPythonProjectDirectory()
+        {
+            string configuredDirectory = Environment.GetEnvironmentVariable(
+                "RECRIANDO_TCC_HOME");
+            if (!string.IsNullOrWhiteSpace(configuredDirectory))
+                return Path.GetFullPath(configuredDirectory);
+
+            string appData = Environment.GetFolderPath(
+                Environment.SpecialFolder.ApplicationData);
+            return Path.Combine(appData, "recriando_tcc_caio_pra");
         }
     }
 }

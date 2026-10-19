@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+from pathlib import Path
 
 import joblib
 import numpy as np
@@ -513,7 +514,12 @@ def main():
         help="Training data source (default: payload)",
     )
     parser.add_argument("--trials", type=int, default=30)
-    parser.add_argument("--model_root", default="data/petrobras")
+    default_model_root = Path(__file__).resolve().parent / "data" / "petrobras"
+    parser.add_argument(
+        "--model_root",
+        default=str(default_model_root),
+        help="Directory containing the source LAS files",
+    )
     parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--job-id", required=True)
     args = parser.parse_args()
