@@ -150,6 +150,7 @@ namespace missing_data
         private NumericUpDown maskValueNumBox;
         private NumericUpDown numEpochsNumBox;
         private NumericUpDown patienceNumBox;
+        private NumericUpDown optunaJobsNumBox;
         private TextBox targetFeatureTextBox;
 
 
@@ -363,6 +364,32 @@ namespace missing_data
 
             curveMappingGroup.Controls.Add(curveLayout);
 
+            int processorCount = Math.Max(1, Environment.ProcessorCount);
+            var optunaLayout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                AutoSize = true,
+                ColumnCount = 2
+            };
+            optunaLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+            optunaLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            optunaJobsNumBox = AddIntegerRow(
+                optunaLayout,
+                "Processes:",
+                0,
+                processorCount,
+                1,
+                processorCount);
+
+            var optunaGroup = new GroupBox
+            {
+                Text = "Optuna",
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                Padding = new Padding(12)
+            };
+            optunaGroup.Controls.Add(optunaLayout);
+
             var unitsLayout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
@@ -397,6 +424,7 @@ namespace missing_data
             };
             generalPanel.Controls.Add(curveMappingGroup);
             generalPanel.Controls.Add(pythonConfigGroup);
+            generalPanel.Controls.Add(optunaGroup);
             generalTab.Controls.Add(generalPanel);
 
             var unitsTab = new TabPage("Units");
@@ -1126,15 +1154,15 @@ namespace missing_data
                 AppendTrainingStatus("Input JSON: " + inputPath);
                 AppendTrainingStatus("Optuna script: " + pythonRuntimeService.OptunaScript);
                 AppendTrainingStatus("Output directory: " + outputPath);
-                int processorCount = Math.Max(1, Environment.ProcessorCount);
-                AppendTrainingStatus("Optuna jobs: " + processorCount);
+                int optunaJobs = (int)optunaJobsNumBox.Value;
+                AppendTrainingStatus("Optuna jobs: " + optunaJobs);
 
                 var result = await pythonRuntimeService.RunOptunaTrainingAsync(
                     inputPath,
                     clustersPath,
                     outputPath,
                     trials: 30,
-                    jobs: processorCount,
+                    jobs: optunaJobs,
                     jobId: jobId,
                     cancellationToken: cancellationToken,
                     outputCallback: (line, isError) => AppendTrainingStatus(line));
