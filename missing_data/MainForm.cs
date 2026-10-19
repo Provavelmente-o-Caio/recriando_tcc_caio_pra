@@ -16,6 +16,12 @@ namespace missing_data
 {
     public class ClusterAnalysisOutput
     {
+        [JsonProperty("schema_version")]
+        public int SchemaVersion { get; set; }
+
+        [JsonProperty("job_id")]
+        public string JobId { get; set; }
+
         [JsonProperty("status")]
         public string Status { get; set; }
 
@@ -34,6 +40,9 @@ namespace missing_data
         [JsonProperty("status")]
         public string Status { get; set; }
 
+        [JsonProperty("job_id")]
+        public string JobId { get; set; }
+
         [JsonProperty("predictions_file")]
         public string PredictionsFile { get; set; }
 
@@ -51,6 +60,24 @@ namespace missing_data
 
         [JsonProperty("wells_without_ground_truth")]
         public int WellsWithoutGroundTruth { get; set; }
+    }
+
+    public class TrainingResultOutput
+    {
+        [JsonProperty("schema_version")]
+        public int SchemaVersion { get; set; }
+
+        [JsonProperty("job_id")]
+        public string JobId { get; set; }
+
+        [JsonProperty("status")]
+        public string Status { get; set; }
+
+        [JsonProperty("experiment_dir")]
+        public string ExperimentDirectory { get; set; }
+
+        [JsonProperty("final_model_dir")]
+        public string FinalModelDirectory { get; set; }
     }
 
     public class WellListItem
@@ -799,14 +826,11 @@ namespace missing_data
                 var selectedTrainingConfiguration = getCurveMapping();
                 var pythonConfiguration = GetPythonConfiguration();
                 
-                string workDir = Path.Combine(
-                    Path.GetTempPath(), "vs_predictior_petrel"
-                );
-
-                Directory.CreateDirectory(workDir);
-
-                string inputPath = Path.Combine(workDir, "cluster_analysis_input.json");
-                string outputPath = Path.Combine(workDir, "cluster_analysis_output.json");
+                string jobId;
+                string workDir = CreateJobDirectory("training", out jobId);
+                string inputPath = Path.Combine(workDir, "training_input.json");
+                string analysisOutputPath = Path.Combine(workDir, "analysis_output.json");
+                string outputPath = Path.Combine(workDir, "training_result.json");
 
                 var payload = BuildClusterAnalysisPayload(selectedWells, selectedTrainingConfiguration, pythonConfiguration);
 
@@ -865,7 +889,8 @@ namespace missing_data
                     runnerPath,
                     "analyze",
                     inputPath,
-                    outputPath
+                    analysisOutputPath,
+                    jobId
                 );
 
                 if (!string.IsNullOrWhiteSpace(result.Stdout))
@@ -892,7 +917,7 @@ namespace missing_data
                     return;
                 }
 
-                if (!File.Exists(outputPath))
+                if (!File.Exists(analysisOutputPath))
                 {
                     MessageBox.Show(
                         "Python finished but did not generate output JSON.",
@@ -906,13 +931,15 @@ namespace missing_data
 
                 // AppendStatus("Reading cluster analysis result...");
 
-                string outputJson = File.ReadAllText(outputPath);
+                string outputJson = File.ReadAllText(analysisOutputPath);
 
                 var analysisOutput = JsonConvert.DeserializeObject<ClusterAnalysisOutput>(
                     outputJson
                 );
 
-                if (analysisOutput == null)
+                if (analysisOutput == null
+                    || analysisOutput.SchemaVersion != 1
+                    || analysisOutput.JobId != jobId)
                 {
                     throw new InvalidOperationException(
                         "Could not parse cluster analysis output JSON."
@@ -940,13 +967,7 @@ namespace missing_data
                     clusters
                 };
 
-                string workDir_clusters = Path.Combine(
-                    Path.GetTempPath(), "vs_predictior_petrel"
-                );
-
-                Directory.CreateDirectory(workDir_clusters);
-
-                string clustersPath = Path.Combine(workDir_clusters, "clusters.json");
+                string clustersPath = Path.Combine(workDir, "clusters.json");
 
                 File.WriteAllText(
                     clustersPath,
@@ -958,7 +979,10 @@ namespace missing_data
                         runnerPath,
                         inputPath,
                         outputPath,
-                        clustersPath
+                        clustersPath,
+                        jobId,
+                        CancellationToken.None,
+                        (line, isError) => AppendStatus(line)
                     );
 
                 if (!string.IsNullOrWhiteSpace(result_clusters.Stdout))
@@ -995,6 +1019,19 @@ namespace missing_data
 
                     return;
                 }
+
+                var trainingOutput = JsonConvert.DeserializeObject<TrainingResultOutput>(
+                    File.ReadAllText(outputPath));
+                if (trainingOutput == null
+                    || trainingOutput.SchemaVersion != 1
+                    || trainingOutput.Status != "success"
+                    || trainingOutput.JobId != jobId)
+                {
+                    throw new InvalidOperationException(
+                        "Training produced an invalid or stale result contract.");
+                }
+
+                AppendStatus("Training completed for job " + jobId + ".");
 
             }
             catch (Exception ex)
@@ -1045,8 +1082,8 @@ namespace missing_data
                 string pythonExe = Path.Combine(projectDir, ".venv", "Scripts", "python.exe");
                 string runnerPath = Path.Combine(projectDir, "predictor.py");
                 string optunaScriptPath = Path.Combine(projectDir, "optuna_experiment.py");
-                string workDir = Path.Combine(Path.GetTempPath(), "vs_predictior_petrel");
-                Directory.CreateDirectory(workDir);
+                string jobId;
+                string workDir = CreateJobDirectory("optuna_training", out jobId);
                 string inputPath = Path.Combine(workDir, "optuna_training_input.json");
                 string clustersPath = Path.Combine(workDir, "optuna_training_clusters.json");
                 string analysisOutputPath = Path.Combine(workDir, "optuna_cluster_analysis_output.json");
@@ -1071,6 +1108,7 @@ namespace missing_data
                     "analyze",
                     inputPath,
                     analysisOutputPath,
+                    jobId,
                     cancellationToken,
                     (line, isError) => AppendTrainingStatus(line));
 
@@ -1091,7 +1129,10 @@ namespace missing_data
                 var analysisOutput = JsonConvert.DeserializeObject<ClusterAnalysisOutput>(
                     File.ReadAllText(analysisOutputPath));
 
-                if (analysisOutput == null || analysisOutput.Status != "success")
+                if (analysisOutput == null
+                    || analysisOutput.SchemaVersion != 1
+                    || analysisOutput.JobId != jobId
+                    || analysisOutput.Status != "success")
                     throw new InvalidOperationException(
                         "Cluster analysis did not finish successfully.");
 
@@ -1110,10 +1151,7 @@ namespace missing_data
                             clusters = clusterForm.EditedClusters
                         },
                         Formatting.Indented));
-                string outputPath = Path.Combine(
-                    projectDir,
-                    "results",
-                    "petrel_optuna_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+                string outputPath = Path.Combine(workDir, "optuna_results");
 
                 AppendTrainingStatus("Starting Optuna training with the analyzed clusters...");
                 AppendTrainingStatus("Selected wells: " + selectedWells.Count);
@@ -1132,6 +1170,7 @@ namespace missing_data
                     outputPath,
                     trials: 30,
                     jobs: processorCount,
+                    jobId: jobId,
                     cancellationToken: cancellationToken,
                     outputCallback: (line, isError) => AppendTrainingStatus(line));
 
@@ -1144,6 +1183,20 @@ namespace missing_data
                         MessageBoxIcon.Error);
                     return;
                 }
+
+                string trainingContractPath = Path.Combine(outputPath, "training_result.json");
+                if (!File.Exists(trainingContractPath))
+                    throw new InvalidOperationException(
+                        "Optuna finished without generating its training result contract.");
+
+                var trainingContract = JsonConvert.DeserializeObject<TrainingResultOutput>(
+                    File.ReadAllText(trainingContractPath));
+                if (trainingContract == null
+                    || trainingContract.SchemaVersion != 1
+                    || trainingContract.Status != "success"
+                    || trainingContract.JobId != jobId)
+                    throw new InvalidOperationException(
+                        "Optuna produced an invalid or stale result contract.");
 
                 AppendTrainingStatus("Optuna training completed: " + outputPath);
                 MessageBox.Show(
@@ -1231,14 +1284,10 @@ namespace missing_data
 
                 AppendStatus("Selected wells: " + selectedWells.Count().ToString());
 
-                string workDir = Path.Combine(
-                    Path.GetTempPath(), "vs_predictior_petrel"
-                );
-
-                Directory.CreateDirectory(workDir);
-
-                string inputPath = Path.Combine(workDir, "cluster_analysis_input.json");
-                string analysisOutputPath = Path.Combine(workDir, "cluster_analysis_output.json");
+                string jobId;
+                string workDir = CreateJobDirectory("prediction", out jobId);
+                string inputPath = Path.Combine(workDir, "prediction_input.json");
+                string analysisOutputPath = Path.Combine(workDir, "analysis_output.json");
                 string predictionOutputPath = Path.Combine(workDir, "prediction_result.json");
 
                 AppendStatus("Exporting selected wells to JSON...");
@@ -1303,6 +1352,7 @@ namespace missing_data
                     "analyze",
                     inputPath,
                     analysisOutputPath,
+                    jobId,
                     cancellationToken
                 );
 
@@ -1350,7 +1400,9 @@ namespace missing_data
                     outputJson
                 );
 
-                if (analysisOutput == null)
+                if (analysisOutput == null
+                    || analysisOutput.SchemaVersion != 1
+                    || analysisOutput.JobId != jobId)
                 {
                     throw new InvalidOperationException(
                         "Could not parse cluster analysis output JSON."
@@ -1378,13 +1430,7 @@ namespace missing_data
                     clusters
                 };
 
-                string workDir_clusters = Path.Combine(
-                    Path.GetTempPath(), "vs_predictior_petrel"
-                );
-
-                Directory.CreateDirectory(workDir_clusters);
-
-                string clustersPath = Path.Combine(workDir_clusters, "clusters.json");
+                string clustersPath = Path.Combine(workDir, "clusters.json");
 
                 File.WriteAllText(
                     clustersPath,
@@ -1398,6 +1444,7 @@ namespace missing_data
                         predictionOutputPath,
                         clustersPath,
                         trainedModelFolderTextBox.Text,
+                        jobId,
                         cancellationToken,
                         (line, isError) => AppendStatus(line)
                     );
@@ -1438,7 +1485,10 @@ namespace missing_data
                 var predictionOutput = JsonConvert.DeserializeObject<PredictionResultOutput>(
                     File.ReadAllText(predictionOutputPath));
 
-                if (predictionOutput == null || predictionOutput.Status != "success")
+                if (predictionOutput == null
+                    || predictionOutput.SchemaVersion != 1
+                    || predictionOutput.Status != "success"
+                    || predictionOutput.JobId != jobId)
                 {
                     throw new InvalidOperationException(
                         "Prediction did not finish successfully.");
@@ -1984,6 +2034,15 @@ namespace missing_data
                 Patience = int.Parse(patienceNumBox.Text),
                 TargetFeature = targetFeatureTextBox.Text
             };
+        }
+
+        private string CreateJobDirectory(string operation, out string jobId)
+        {
+            jobId = operation + "_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss")
+                + "_" + Guid.NewGuid().ToString("N");
+            string directory = Path.Combine(Path.GetTempPath(), "vs_predictior_petrel", jobId);
+            Directory.CreateDirectory(directory);
+            return directory;
         }
     }
 }

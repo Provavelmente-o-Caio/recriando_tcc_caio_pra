@@ -168,7 +168,7 @@ class Predictor:
             wells_without_vs,
         )
 
-    def analyze(self, input_path: str, output_path: str):
+    def analyze(self, input_path: str, output_path: str, job_id: str):
         """
         Main execution function.
 
@@ -224,6 +224,8 @@ class Predictor:
             os.makedirs(output_dir, exist_ok=True)
 
         result = {
+            "schema_version": 1,
+            "job_id": job_id,
             "status": "success",
             "clusters": {
                 str(cluster): list(map(int, indices))
@@ -262,6 +264,7 @@ class Predictor:
         output_path: str,
         recommended_clusters_path: str,
         experiment_dir: str,
+        job_id: str,
     ):
         (
             base_config,
@@ -321,6 +324,7 @@ class Predictor:
 
         self._write_prediction_result(
             output_path=output_path,
+            job_id=job_id,
             experiment_dir=experiment_dir,
             final_output_dir=final_output_dir,
             all_results=all_results,
@@ -330,6 +334,7 @@ class Predictor:
     def _write_prediction_result(
         self,
         output_path: str,
+        job_id: str,
         experiment_dir: str,
         final_output_dir: str,
         all_results: dict[str, dict[str, Any]],
@@ -380,6 +385,7 @@ class Predictor:
 
         result = {
             "schema_version": 1,
+            "job_id": job_id,
             "status": "success",
             "experiment_dir": os.path.abspath(experiment_dir),
             "final_model_dir": os.path.abspath(final_output_dir),
@@ -407,10 +413,14 @@ class Predictor:
 
         print(f"Prediction result contract saved to {output_path}")
 
-    def train(self, input_path: str, output_path: str, recommended_clusters_path: str):
-        # JANK: THIS IS A TEMPORARY FIX
-        working_dir = os.path.dirname(output_path)
-        working_dir = working_dir.removesuffix("cluster_analysis_output.json")
+    def train(
+        self,
+        input_path: str,
+        output_path: str,
+        recommended_clusters_path: str,
+        job_id: str,
+    ):
+        working_dir = os.path.dirname(os.path.abspath(output_path))
         experiments_dir = os.path.join(working_dir, "experiments")
 
         if not os.path.exists(experiments_dir):
@@ -446,6 +456,17 @@ class Predictor:
 
         trainer.plot_predictions(all_results)
         trainer.generate_summary_report(all_results, best_config)
+
+        result = {
+            "schema_version": 1,
+            "job_id": job_id,
+            "status": "success",
+            "experiment_dir": os.path.abspath(experiment_dir),
+            "final_model_dir": os.path.abspath(final_output_dir),
+        }
+        with open(output_path, "w", encoding="utf-8") as file_handle:
+            json.dump(result, file_handle, indent=2, allow_nan=False)
+        print(f"Training result contract saved to {output_path}")
 
     def _run_new_experiment(
         self, base_config, feature_combinations, wells_with_vs, results_dir
@@ -732,6 +753,7 @@ def main():
         "--cluster", type=str, help="Cluster for your selected well log"
     )
     parser.add_argument("--experiment_dir", type=str, help="Experiment directory")
+    parser.add_argument("--job-id", required=True, help="Unique execution identifier")
     args = parser.parse_args()
 
     predictor = Predictor(
@@ -741,12 +763,12 @@ def main():
 
     match args.mode:
         case "analyze":
-            predictor.analyze(args.input, args.output)
+            predictor.analyze(args.input, args.output, args.job_id)
         case "train":
-            predictor.train(args.input, args.output, args.cluster)
+            predictor.train(args.input, args.output, args.cluster, args.job_id)
         case "predict":
             predictor.predict(
-                args.input, args.output, args.cluster, args.experiment_dir
+                args.input, args.output, args.cluster, args.experiment_dir, args.job_id
             )
 
 

@@ -27,6 +27,7 @@ namespace missing_data
             string mode,
             string inputPath,
             string outputPath,
+            string jobId,
             CancellationToken cancellationToken = default(CancellationToken),
             Action<string, bool> outputCallback = null)
         {
@@ -52,7 +53,8 @@ namespace missing_data
                 "\"" + runnerPath + "\" " +
                 mode + " " +
                 "--input \"" + inputPath + "\" " +
-                "--output \"" + outputPath + "\"";
+                "--output \"" + outputPath + "\" " +
+                "--job-id \"" + jobId + "\"";
 
             var psi = new ProcessStartInfo
             {
@@ -61,12 +63,21 @@ namespace missing_data
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                WorkingDirectory = workingDirectory
             };
 
             return await RunProcessAsync(psi, cancellationToken, outputCallback);
         }
-        public static async Task<PythonProcessResult> RunPythonTrainingAsync(string pythonExe, string runnerPath, string inputPath, string outputPath, string clustersPath)
+        public static async Task<PythonProcessResult> RunPythonTrainingAsync(
+            string pythonExe,
+            string runnerPath,
+            string inputPath,
+            string outputPath,
+            string clustersPath,
+            string jobId,
+            CancellationToken cancellationToken,
+            Action<string, bool> outputCallback = null)
         {
             if (!File.Exists(pythonExe))
             {
@@ -88,7 +99,8 @@ namespace missing_data
                 $"\"{runnerPath}\" train " +
                 $"--input \"{inputPath}\" " +
                 $"--output \"{outputPath}\" " +
-                $"--cluster \"{clustersPath}\"";
+                $"--cluster \"{clustersPath}\" " +
+                $"--job-id \"{jobId}\"";
 
             var psi = new ProcessStartInfo
             {
@@ -97,10 +109,11 @@ namespace missing_data
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetDirectoryName(runnerPath)
             };
 
-            return await RunProcessAsync(psi, CancellationToken.None, null);
+            return await RunProcessAsync(psi, cancellationToken, outputCallback);
         }
 
         public static async Task<PythonProcessResult> RunPythonOptunaTrainingAsync(
@@ -111,6 +124,7 @@ namespace missing_data
             string outputPath,
             int trials,
             int jobs,
+            string jobId,
             CancellationToken cancellationToken,
             Action<string, bool> outputCallback = null)
         {
@@ -129,7 +143,8 @@ namespace missing_data
                 $"--cluster \"{clustersPath}\" " +
                 $"--output \"{outputPath}\" " +
                 $"--trials {trials} " +
-                $"--jobs {jobs}";
+                $"--jobs {jobs} " +
+                $"--job-id \"{jobId}\"";
 
             var psi = new ProcessStartInfo
             {
@@ -138,7 +153,8 @@ namespace missing_data
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetDirectoryName(optunaScriptPath)
             };
 
             return await RunProcessAsync(psi, cancellationToken, outputCallback);
@@ -152,6 +168,7 @@ namespace missing_data
             string outputPath,
             string clustersPath,
             string trainedModelFolder,
+            string jobId,
             CancellationToken cancellationToken = default(CancellationToken),
             Action<string, bool> outputCallback = null)
         {
@@ -176,7 +193,8 @@ namespace missing_data
                 $"--input \"{inputPath}\" " +
                 $"--output \"{outputPath}\" " +
                 $"--cluster \"{clustersPath}\" " +
-                $"--experiment_dir \"{trainedModelFolder}\"";
+                $"--experiment_dir \"{trainedModelFolder}\" " +
+                $"--job-id \"{jobId}\"";
 
             var psi = new ProcessStartInfo
             {
@@ -185,7 +203,8 @@ namespace missing_data
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetDirectoryName(runnerPath)
             };
 
             return await RunProcessAsync(psi, cancellationToken, outputCallback);

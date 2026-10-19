@@ -515,6 +515,7 @@ def main():
     parser.add_argument("--trials", type=int, default=30)
     parser.add_argument("--model_root", default="data/petrobras")
     parser.add_argument("--jobs", type=int, default=1)
+    parser.add_argument("--job-id", required=True)
     args = parser.parse_args()
 
     if args.data_source == "petrobras":
@@ -575,6 +576,18 @@ def main():
     )
     trainer.plot_predictions(all_results)
     trainer.generate_summary_report(all_results, load_best_configuration(args.output))
+    with open(os.path.join(args.output, "training_result.json"), "w", encoding="utf-8") as file_handle:
+        json.dump(
+            {
+                "schema_version": 1,
+                "job_id": args.job_id,
+                "status": "success",
+                "experiment_dir": os.path.abspath(args.output),
+                "final_model_dir": os.path.abspath(final_output_dir),
+            },
+            file_handle,
+            indent=2,
+        )
 
 
 if __name__ == "__main__":
