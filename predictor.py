@@ -544,7 +544,7 @@ def validate_curve_mapping(payload: dict[str, Any]) -> dict[str, str]:
     for canonical_name in REQUIRED_CURVES:
         selected_name = mapping.get(canonical_name)
 
-        if selected_name.strip() is None or not isinstance(selected_name, str):
+        if not isinstance(selected_name, str) or not selected_name.strip():
             raise ValueError(f"Missing curve: {canonical_name}")
 
     return {key: str(value).strip() for key, value in mapping.items()}

@@ -368,8 +368,8 @@ namespace missing_data
             grComboBox = AddCurveRow(curveLayout, "GR:", 3);
             porosityComboBox = AddCurveRow(curveLayout, "Porosity:", 4);
             saturationComboBox = AddCurveRow(curveLayout, "Saturation:", 5);
-            clayComboBox = AddCurveRow(curveLayout, "Clay:", 6);
-            caliperComboBox = AddCurveRow(curveLayout, "Caliper:", 7);
+            clayComboBox = AddCurveRow(curveLayout, "Clay (optional):", 6, true);
+            caliperComboBox = AddCurveRow(curveLayout, "Caliper (optional):", 7, true);
 
             outputCurveNameTextBox = new TextBox
             {
@@ -791,7 +791,11 @@ namespace missing_data
         }
 
 
-        private ComboBox AddCurveRow(TableLayoutPanel layout, string label, int row)
+        private ComboBox AddCurveRow(
+            TableLayoutPanel layout,
+            string label,
+            int row,
+            bool optional = false)
         {
             var combo = new ComboBox
             {
@@ -813,6 +817,11 @@ namespace missing_data
             layout.Controls.Add(combo, 1, row);
 
             combo.Items.AddRange(LoadLogHeaders());
+            if (optional)
+            {
+                combo.Items.Insert(0, "(Not used)");
+                combo.SelectedIndex = 0;
+            }
 
             return combo;
         }
@@ -2006,6 +2015,30 @@ namespace missing_data
             return value;
         }
 
+        private string GetOptionalComboValue(
+            ComboBox comboBox,
+            string fieldName)
+        {
+            if (comboBox == null)
+            {
+                throw new InvalidOperationException(
+                    fieldName + " control was not initialized."
+                );
+            }
+
+            if (comboBox.SelectedItem == null)
+                return null;
+
+            string value = comboBox.SelectedItem.ToString();
+            if (string.IsNullOrWhiteSpace(value)
+                || string.Equals(value, "(Not used)", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            return value;
+        }
+
         private List<Borehole> GetSelectedWells(CheckedListBox clb)
         {
             var selected = new List<Borehole>();
@@ -2032,10 +2065,16 @@ namespace missing_data
                 { "GR", GetRequiredComboValue(grComboBox, "GR") },
                 { "POROSIDADE", GetRequiredComboValue(porosityComboBox, "Porosity") },
                 { "SATURACAO", GetRequiredComboValue(saturationComboBox, "Saturation") },
-                { "ARGILOSIDADE", GetRequiredComboValue(clayComboBox, "Clay") },
-                { "CALIPER", GetRequiredComboValue(caliperComboBox, "Caliper") },
                 { "OUTPUT_CURVE", GetRequiredTextValue(outputCurveNameTextBox, "Output curve") }
             };
+
+            string clay = GetOptionalComboValue(clayComboBox, "Clay");
+            if (!string.IsNullOrWhiteSpace(clay))
+                selected["ARGILOSIDADE"] = clay;
+
+            string caliper = GetOptionalComboValue(caliperComboBox, "Caliper");
+            if (!string.IsNullOrWhiteSpace(caliper))
+                selected["CALIPER"] = caliper;
 
             return selected;
         }
