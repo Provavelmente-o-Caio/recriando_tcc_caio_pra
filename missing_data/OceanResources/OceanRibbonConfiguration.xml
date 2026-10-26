@@ -87,7 +87,7 @@
               <Extensions Type="Extensibility.ExtensionCollection">
                 <Attributes.AttributesExtension>
                   <Attributes Type="Attributes.AttributeCollection">
-                    <Attributes.AttributeValue AttributeId="Appearance.Caption" ValueType="System.String" Value="RibbonTab_1" />
+                    <Attributes.AttributeValue AttributeId="Appearance.Caption" ValueType="System.String" Value="VS Predictor" />
                   </Attributes>
                 </Attributes.AttributesExtension>
               </Extensions>
