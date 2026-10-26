@@ -30,7 +30,7 @@ from utils.training_utilities import (
     set_deterministic,
     train_model_with_validation_split,
 )
-from utils.WellLogDataset import WellLogAugmentation, WellLogDataset
+from utils.WellLogDataset import WellLogDataset, create_augmentation
 
 
 def normalize_clusters_for_labeled_wells(
@@ -132,9 +132,7 @@ class OptunaCrossFoldExperiment(CrossFoldHyperparameterExperiment):
         test_features_data = processed_test.select(features_to_use).to_numpy()
         test_target_data = processed_test.get_column(target_feature).to_numpy()
 
-        augmentation = WellLogAugmentation(
-            noise_level=0.01, scale_range=(0.95, 1.05)
-        )
+        augmentation = create_augmentation(self.base_config)
         train_dataset = WellLogDataset(
             None,
             None,

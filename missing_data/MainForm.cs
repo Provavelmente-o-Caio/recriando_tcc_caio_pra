@@ -102,6 +102,11 @@ namespace missing_data
         public int NumEpochs { get; set; }
         public int Patience { get; set; }
         public string TargetFeature { get; set; }
+        public int Seed { get; set; }
+        public bool AugmentationEnabled { get; set; }
+        public double AugmentationNoiseLevel { get; set; }
+        public double AugmentationScaleMin { get; set; }
+        public double AugmentationScaleMax { get; set; }
     }
 
     public class UnitConfiguration
@@ -154,6 +159,11 @@ namespace missing_data
         private NumericUpDown optunaTrialsNumBox;
         private NumericUpDown optunaStartupTrialsNumBox;
         private TextBox targetFeatureTextBox;
+        private NumericUpDown randomSeedNumBox;
+        private CheckBox augmentationEnabledCheckBox;
+        private NumericUpDown augmentationNoiseNumBox;
+        private NumericUpDown augmentationScaleMinNumBox;
+        private NumericUpDown augmentationScaleMaxNumBox;
 
 
         // Tabs
@@ -299,6 +309,7 @@ namespace missing_data
             maskValueNumBox = AddDecimalRow(layout, "Mask value:", 1, -1.0m, -9999m, 9999m);
             numEpochsNumBox = AddIntegerRow(layout, "Num epochs:", 2, 500, 1, 10000);
             patienceNumBox = AddIntegerRow(layout, "Patience:", 3, 150, 1, 5000);
+            randomSeedNumBox = AddIntegerRow(layout, "Random seed:", 4, 42, 0, int.MaxValue);
 
             targetFeatureTextBox = new TextBox
             {
@@ -314,6 +325,19 @@ namespace missing_data
             }, 0, 4);
 
             layout.Controls.Add(targetFeatureTextBox, 1, 4);
+            augmentationEnabledCheckBox = new CheckBox
+            {
+                Text = "Enable data augmentation",
+                Checked = true,
+                AutoSize = true
+            };
+            layout.Controls.Add(augmentationEnabledCheckBox, 1, 5);
+            augmentationNoiseNumBox = AddDecimalRow(layout, "Augmentation noise:", 6, 0.01m, 0m, 1m);
+            augmentationScaleMinNumBox = AddDecimalRow(layout, "Scale minimum:", 7, 0.95m, 0m, 10m);
+            augmentationScaleMaxNumBox = AddDecimalRow(layout, "Scale maximum:", 8, 1.05m, 0m, 10m);
+            augmentationNoiseNumBox.Increment = 0.01m;
+            augmentationScaleMinNumBox.Increment = 0.01m;
+            augmentationScaleMaxNumBox.Increment = 0.01m;
 
             pythonConfigGroup.Controls.Add(layout);
 
@@ -2223,13 +2247,26 @@ namespace missing_data
 
         private PythonConfiguration GetPythonConfiguration()
         {
+            double augmentationScaleMin = (double)augmentationScaleMinNumBox.Value;
+            double augmentationScaleMax = (double)augmentationScaleMaxNumBox.Value;
+            if (augmentationScaleMax < augmentationScaleMin)
+            {
+                throw new InvalidOperationException(
+                    "Augmentation scale maximum must be greater than or equal to the minimum.");
+            }
+
             return new PythonConfiguration
             {
                 SequenceLength = int.Parse(sequenceLengthNumBox.Text),
                 MaskValue = double.Parse(maskValueNumBox.Text),
                 NumEpochs = int.Parse(numEpochsNumBox.Text),
                 Patience = int.Parse(patienceNumBox.Text),
-                TargetFeature = targetFeatureTextBox.Text
+                TargetFeature = targetFeatureTextBox.Text,
+                Seed = (int)randomSeedNumBox.Value,
+                AugmentationEnabled = augmentationEnabledCheckBox.Checked,
+                AugmentationNoiseLevel = (double)augmentationNoiseNumBox.Value,
+                AugmentationScaleMin = augmentationScaleMin,
+                AugmentationScaleMax = augmentationScaleMax
             };
         }
 

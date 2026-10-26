@@ -82,3 +82,23 @@ class WellLogAugmentation:
             sequence = sequence * scale_factor
 
         return sequence
+
+
+def create_augmentation(base_config):
+    if not base_config.get("augmentation_enabled", True):
+        return None
+
+    noise_level = float(base_config.get("augmentation_noise_level", 0.01))
+    scale_min = float(base_config.get("augmentation_scale_min", 0.95))
+    scale_max = float(base_config.get("augmentation_scale_max", 1.05))
+    if noise_level < 0:
+        raise ValueError("augmentation_noise_level must be non-negative.")
+    if scale_min < 0 or scale_max < scale_min:
+        raise ValueError(
+            "augmentation scale range must satisfy 0 <= scale_min <= scale_max."
+        )
+
+    return WellLogAugmentation(
+        noise_level=noise_level,
+        scale_range=(scale_min, scale_max),
+    )

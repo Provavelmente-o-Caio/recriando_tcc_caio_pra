@@ -21,7 +21,7 @@ from utils.training_utilities import (
     evaluate_model,
     set_deterministic,
 )
-from utils.WellLogDataset import WellLogAugmentation, WellLogDataset
+from utils.WellLogDataset import WellLogDataset, create_augmentation
 
 from dataclasses import dataclass
 
@@ -103,7 +103,7 @@ class CrossFoldHyperparameterExperiment:
         set_deterministic(self.base_config.get("seed", 42))
 
         # Create augmentation
-        augmentation = WellLogAugmentation(noise_level=0.01, scale_range=(0.95, 1.05))
+        augmentation = create_augmentation(self.base_config)
 
         # Create datasets
         train_dataset = WellLogDataset(

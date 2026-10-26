@@ -21,7 +21,7 @@ from utils.training_utilities import (
     set_deterministic,
     train_model_with_validation_split,
 )
-from utils.WellLogDataset import WellLogAugmentation, WellLogDataset
+from utils.WellLogDataset import WellLogDataset, create_augmentation
 
 
 class FinalModelTrainer:
@@ -190,9 +190,7 @@ class FinalModelTrainer:
             # print(f"  Total training samples: {len(all_train_features)}")
 
             # Dataset e DataLoader
-            augmentation = WellLogAugmentation(
-                noise_level=0.01, scale_range=(0.95, 1.05)
-            )
+            augmentation = create_augmentation(self.base_config)
             train_dataset = WellLogDataset(
                 None,
                 None,

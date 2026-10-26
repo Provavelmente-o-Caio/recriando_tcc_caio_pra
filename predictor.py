@@ -162,6 +162,11 @@ class Predictor:
             "mask_value": config.get("MaskValue"),
             "num_epochs": config.get("NumEpochs"),
             "patience": config.get("Patience"),
+            "seed": config.get("Seed", 42),
+            "augmentation_enabled": config.get("AugmentationEnabled", True),
+            "augmentation_noise_level": config.get("AugmentationNoiseLevel", 0.01),
+            "augmentation_scale_min": config.get("AugmentationScaleMin", 0.95),
+            "augmentation_scale_max": config.get("AugmentationScaleMax", 1.05),
             "target_feature": config.get("TargetFeature"),
             "clusters": recommended_clusters,
             "labeled_well_indices": labeled_well_indices,
@@ -633,6 +638,25 @@ def validate_config(payload: dict[str, Any]):
 
     if not isinstance(config, dict):
         raise ValueError(f"config must be a dictionary: {config}")
+
+    seed = config.get("Seed", 42)
+    if not isinstance(seed, int) or seed < 0:
+        raise ValueError("Seed must be a non-negative integer.")
+
+    augmentation_enabled = config.get("AugmentationEnabled", True)
+    if not isinstance(augmentation_enabled, bool):
+        raise ValueError("AugmentationEnabled must be a boolean.")
+
+    noise_level = config.get("AugmentationNoiseLevel", 0.01)
+    scale_min = config.get("AugmentationScaleMin", 0.95)
+    scale_max = config.get("AugmentationScaleMax", 1.05)
+    if noise_level < 0:
+        raise ValueError("AugmentationNoiseLevel must be non-negative.")
+    if scale_min < 0 or scale_max < scale_min:
+        raise ValueError(
+            "AugmentationScaleMin and AugmentationScaleMax must satisfy "
+            "0 <= minimum <= maximum."
+        )
 
     return config
 
